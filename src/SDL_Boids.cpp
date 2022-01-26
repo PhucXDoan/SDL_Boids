@@ -10,6 +10,14 @@ flag_struct (ArrowKey, u32)
 	up    = 1 << 3
 };
 
+struct Boid
+{
+	vf2 position;
+	vf2 velocity;
+	vf2 acceleration;
+	f32 angle;
+};
+
 int main(int, char**)
 {
 	if (SDL_Init(SDL_INIT_VIDEO))
@@ -26,129 +34,81 @@ int main(int, char**)
 
 		if (window)
 		{
-			SDL_Surface* window_surface = SDL_GetWindowSurface(window);
+			SDL_Renderer* window_renderer = SDL_CreateRenderer(window, -1, 0);
 
-			if (window_surface)
+			if (window_renderer)
 			{
-				SDL_Renderer* window_renderer = SDL_CreateRenderer(window, -1, 0);
+				i32 pixels_per_meter = 100;
 
-				if (window_renderer)
+				bool32 running = true;
+				while (running)
 				{
-					constexpr strlit TEST_BMP_FILE_PATHS[] =
-						{
-							"./ralph-0-quarter.bmp",
-							"./ralph-paperball-down.bmp",
-							"./ralph-paperball-up.bmp",
-							"./ralph-water-down.bmp",
-							"./ralph-water-up.bmp"
-						};
-
-					SDL_Texture* test_textures[ARRAY_CAPACITY(TEST_BMP_FILE_PATHS)];
-
-					FOR_ELEMS(test_texture, test_textures)
+					for (SDL_Event event; SDL_PollEvent(&event);)
 					{
-						SDL_Surface* bmp_surface = SDL_LoadBMP(TEST_BMP_FILE_PATHS[test_texture_index]);
-
-						if (bmp_surface)
+						switch (event.type)
 						{
-							*test_texture = SDL_CreateTextureFromSurface(window_renderer, bmp_surface);
-						}
-						else
-						{
-							fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-							ASSERT(!"Could not load this bitmap.");
-							// @TODO@ How should the case of failing be handled?
-							// Doing `return -1` or such skips the deallocation or whatever, could be bad.
-						}
-
-						SDL_FreeSurface(bmp_surface);
-					}
-
-					bool32   running            = true;
-					ArrowKey pressed_arrow_keys = {};
-
-					while (running)
-					{
-						{
-							SDL_Event event;
-							while (SDL_PollEvent(&event))
+							case SDL_QUIT:
 							{
-								switch (event.type)
+								running = false;
+							} break;
+
+							#if 0
+							case SDL_KEYDOWN:
+							case SDL_KEYUP:
+							{
+								switch (event.key.keysym.sym)
 								{
-									case SDL_QUIT:
+									case SDLK_LEFT:
+									case SDLK_RIGHT:
+									case SDLK_DOWN:
+									case SDLK_UP:
 									{
-										running = false;
-									} break;
+										ArrowKey arrow_key =
+											event.key.keysym.sym == SDLK_LEFT  ? ArrowKey::left  :
+											event.key.keysym.sym == SDLK_RIGHT ? ArrowKey::right :
+											event.key.keysym.sym == SDLK_DOWN  ? ArrowKey::down  : ArrowKey::up;
 
-									case SDL_KEYDOWN:
-									case SDL_KEYUP:
-									{
-										switch (event.key.keysym.sym)
+										if (event.key.state == SDL_PRESSED && !event.key.repeat)
 										{
-											case SDLK_LEFT:
-											case SDLK_RIGHT:
-											case SDLK_DOWN:
-											case SDLK_UP:
-											{
-												ArrowKey arrow_key =
-													event.key.keysym.sym == SDLK_LEFT  ? ArrowKey::left  :
-													event.key.keysym.sym == SDLK_RIGHT ? ArrowKey::right :
-													event.key.keysym.sym == SDLK_DOWN  ? ArrowKey::down  : ArrowKey::up;
-
-												if (event.key.state == SDL_PRESSED && !event.key.repeat)
-												{
-													pressed_arrow_keys |= arrow_key;
-												}
-												else if (event.key.state == SDL_RELEASED)
-												{
-													pressed_arrow_keys &= ~arrow_key;
-												}
-											} break;
+											pressed_arrow_keys |= arrow_key;
+										}
+										else if (event.key.state == SDL_RELEASED)
+										{
+											pressed_arrow_keys &= ~arrow_key;
 										}
 									} break;
 								}
-							}
+							} break;
+							#endif
 						}
-
-						SDL_RenderClear(window_renderer);
-
-						SDL_RenderCopy
-						(
-							window_renderer,
-							test_textures
-							[
-								+(pressed_arrow_keys & ArrowKey::left ) ? 1 :
-								+(pressed_arrow_keys & ArrowKey::right) ? 2 :
-								+(pressed_arrow_keys & ArrowKey::down ) ? 3 :
-								+(pressed_arrow_keys & ArrowKey::up   ) ? 4 : 0
-							],
-							0,
-							0
-						);
-
-						SDL_RenderPresent(window_renderer);
 					}
 
-					FOR_ELEMS(test_texture, test_textures)
+					SDL_SetRenderDrawColor(window_renderer, 0, 0, 0, 255);
+					SDL_RenderClear(window_renderer);
+
+					SDL_SetRenderDrawColor(window_renderer, 255, 255, 255, 255);
+					FOR_RANGE(i, 0, WINDOW_WIDTH / pixels_per_meter + 1)
 					{
-						SDL_DestroyTexture(*test_texture);
+						i32 x = i * pixels_per_meter;
+						SDL_RenderDrawLine(window_renderer, x, 0, x, WINDOW_HEIGHT);
 					}
-				}
-				else
-				{
-					fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-					ASSERT(!"SDL could not create a surface for the window.");
-				}
 
-				SDL_DestroyRenderer(window_renderer);
+					FOR_RANGE(i, 0, WINDOW_HEIGHT / pixels_per_meter + 1)
+					{
+						i32 y = i * pixels_per_meter;
+						SDL_RenderDrawLine(window_renderer, 0, y, WINDOW_WIDTH, y);
+					}
+
+					SDL_RenderPresent(window_renderer);
+				}
 			}
 			else
 			{
 				fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-				ASSERT(!"SDL could not create a surface for the window.");
+				ASSERT(!"SDL could not create a renderer for the window.");
 			}
 
-			SDL_FreeSurface(window_surface);
+			SDL_DestroyRenderer(window_renderer);
 		}
 		else
 		{
