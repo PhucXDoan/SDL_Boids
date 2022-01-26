@@ -4,7 +4,6 @@
 // @TODO@ Render boids using textures?
 // @TODO@ Should resizing of window be allowed?
 // @TODO@ Make grid centered?
-// @TODO@ Flip the rendering upside down.
 
 #define DEBUG 1
 #include "unified.h"
@@ -58,8 +57,7 @@ int main(int, char**)
 
 			if (window_renderer)
 			{
-				i32 pixels_per_meter = 100;
-
+				constexpr i32 PIXELS_PER_METER = 100;
 				constexpr vf2 BOID_VERTICES[] =
 					{
 						{   9.0f,   0.0f },
@@ -68,14 +66,21 @@ int main(int, char**)
 						{ -11.0f, -10.0f },
 						{   9.0f,   0.0f }
 					};
+				constexpr i32 BOID_AMOUNT = 8;
 
-				Boid TEST_boid;
-				TEST_boid.angular_acceleration = 0.0f;
-				TEST_boid.angular_velocity     = 0.0f;
-				TEST_boid.angle                = 0.0f;
-				TEST_boid.acceleration         = 0.0f;
-				TEST_boid.velocity             = 0.0f;
-				TEST_boid.position             = { 3.0f, 4.0f };
+				Boid boid_swap_arrays[2][BOID_AMOUNT];
+				Boid (*new_boids)[BOID_AMOUNT] = &boid_swap_arrays[0];
+				Boid (*old_boids)[BOID_AMOUNT] = &boid_swap_arrays[1];
+
+				FOR_ELEMS(new_boid, *new_boids)
+				{
+					new_boid->angular_acceleration = 0.1f;
+					new_boid->angular_velocity     = 0.0f;
+					new_boid->angle                = 0.0f;
+					new_boid->acceleration         = 0.1f;
+					new_boid->velocity             = 0.0f;
+					new_boid->position             = { 1.0f + new_boid_index, 4.0f };
+				}
 
 				u64    performance_count = SDL_GetPerformanceCounter();
 				bool32 running = true;
@@ -128,25 +133,25 @@ int main(int, char**)
 						performance_count = new_performance_count;
 					}
 
-					//
-					// Clears.
-					//
+					SWAP(new_boids, old_boids);
+
 					SDL_SetRenderDrawColor(window_renderer, 0, 0, 0, 255);
 					SDL_RenderClear(window_renderer);
 
 					//
 					// Grid.
 					//
+
 					SDL_SetRenderDrawColor(window_renderer, 255, 255, 255, 255);
-					FOR_RANGE(i, 0, WINDOW_WIDTH / pixels_per_meter + 1)
+					FOR_RANGE(i, 0, WINDOW_WIDTH / PIXELS_PER_METER + 1)
 					{
-						i32 x = i * pixels_per_meter;
+						i32 x = i * PIXELS_PER_METER;
 						SDL_RenderDrawLine(window_renderer, x, 0, x, WINDOW_HEIGHT);
 					}
 
-					FOR_RANGE(i, 0, WINDOW_HEIGHT / pixels_per_meter + 1)
+					FOR_RANGE(i, 0, WINDOW_HEIGHT / PIXELS_PER_METER + 1)
 					{
-						i32 y = i * pixels_per_meter;
+						i32 y = WINDOW_HEIGHT - 1 - i * PIXELS_PER_METER;
 						SDL_RenderDrawLine(window_renderer, 0, y, WINDOW_WIDTH, y);
 					}
 
@@ -154,33 +159,35 @@ int main(int, char**)
 					// Boids.
 					//
 
-					TEST_boid.angular_acceleration  = 0.05f;
-					TEST_boid.angular_velocity     += TEST_boid.angular_acceleration * delta_seconds;
-					TEST_boid.angle                += TEST_boid.angular_velocity * delta_seconds;
-
-					vf2 direction = { cos_f32(TEST_boid.angle), sin_f32(TEST_boid.angle) };
-
-					TEST_boid.acceleration   = 0.1f;
-					TEST_boid.velocity      += TEST_boid.acceleration * delta_seconds;
-					TEST_boid.position      += TEST_boid.velocity * direction * delta_seconds;
-
 					SDL_SetRenderDrawColor(window_renderer, 222, 173, 38, 255);
 
-					vf2 offset = TEST_boid.position * static_cast<f32>(pixels_per_meter);
-
-					SDL_Point boid_pixel_points[ARRAY_CAPACITY(BOID_VERTICES)];
-
-					FOR_ELEMS(boid_pixel_point, boid_pixel_points)
+					FOR_ELEMS(new_boid, *new_boids)
 					{
-						*boid_pixel_point =
-							{
-								static_cast<i32>(BOID_VERTICES[boid_pixel_point_index].x * direction.x - BOID_VERTICES[boid_pixel_point_index].y * direction.y + offset.x),
-								static_cast<i32>(BOID_VERTICES[boid_pixel_point_index].x * direction.y + BOID_VERTICES[boid_pixel_point_index].y * direction.x + offset.y)
-							};
-					}
+						Boid* old_boid = &(*old_boids)[new_boid_index];
 
-					SDL_RenderDrawLines(window_renderer, boid_pixel_points, ARRAY_CAPACITY(boid_pixel_points));
-					SDL_RenderDrawPoint(window_renderer, static_cast<i32>(offset.x), static_cast<i32>(offset.y));
+						new_boid->angular_acceleration = 0.05f;
+						new_boid->angular_velocity     = old_boid->angular_velocity + old_boid->angular_acceleration * delta_seconds;
+						new_boid->angle                = old_boid->angle + old_boid->angular_velocity * delta_seconds + 0.5f * old_boid->angular_acceleration * delta_seconds * delta_seconds;
+						new_boid->acceleration         = 0.1f;
+						new_boid->velocity             = old_boid->velocity + old_boid->acceleration * delta_seconds;
+						new_boid->position             = old_boid->position + (old_boid->velocity * delta_seconds + 0.5f * old_boid->acceleration * delta_seconds * delta_seconds) * vf2 { cos_f32(old_boid->angle), sin_f32(old_boid->angle) };
+
+						vf2 direction = { cos_f32(new_boid->angle), sin_f32(new_boid->angle) };
+						vf2 offset    = new_boid->position * static_cast<f32>(PIXELS_PER_METER);
+
+						SDL_Point pixel_points[ARRAY_CAPACITY(BOID_VERTICES)];
+						FOR_ELEMS(pixel_point, pixel_points)
+						{
+							*pixel_point =
+								{
+									static_cast<i32>(BOID_VERTICES[pixel_point_index].x * direction.x - BOID_VERTICES[pixel_point_index].y * direction.y + offset.x),
+									WINDOW_HEIGHT - 1 - static_cast<i32>(BOID_VERTICES[pixel_point_index].x * direction.y + BOID_VERTICES[pixel_point_index].y * direction.x + offset.y)
+								};
+						}
+
+						SDL_RenderDrawLines(window_renderer, pixel_points, ARRAY_CAPACITY(pixel_points));
+						SDL_RenderDrawPoint(window_renderer, static_cast<i32>(offset.x), WINDOW_HEIGHT - 1 - static_cast<i32>(offset.y));
+					}
 
 					SDL_RenderPresent(window_renderer);
 				}
