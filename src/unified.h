@@ -1,11 +1,6 @@
 #pragma once
 #include <stdint.h>
 
-#define DEBUG 1
-// @TODO@ Render boids using textures?
-// @TODO@ Should resizing of window be allowed?
-// @TODO@ Make grid centered?
-
 #if DEBUG
 #define ASSERT(EXPRESSION) do { if (!(EXPRESSION)) { *static_cast<int*>(0) = 0; } } while (false)
 #else

@@ -1,5 +1,13 @@
 #include <stdio.h>
 #include <SDL.h>
+
+// @TODO@ Render boids using textures?
+// @TODO@ Should resizing of window be allowed?
+// @TODO@ Make grid centered?
+// @TODO@ Flip the rendering upside down.
+// @TODO@ Frame-rate independence.
+
+#define DEBUG 1
 #include "unified.h"
 
 flag_struct (ArrowKey, u32)
@@ -12,11 +20,22 @@ flag_struct (ArrowKey, u32)
 
 struct Boid
 {
-	vf2 position;
-	vf2 velocity;
-	vf2 acceleration;
 	f32 angle;
+	vf2 position;
+	f32 velocity;
+	f32 acceleration;
 };
+
+// @TODO@ Implement the trig functions.
+inline f32 cos_f32(f32 rad)
+{
+	return static_cast<f32>(cos(rad));
+}
+
+inline f32 sin_f32(f32 rad)
+{
+	return static_cast<f32>(sin(rad));
+}
 
 int main(int, char**)
 {
@@ -35,6 +54,21 @@ int main(int, char**)
 		if (window)
 		{
 			SDL_Renderer* window_renderer = SDL_CreateRenderer(window, -1, 0);
+
+			constexpr vf2 BOID_VERTICES[] =
+				{
+					{   9.0f,   0.0f },
+					{ -11.0f,  10.0f },
+					{  -3.0f,   0.0f },
+					{ -11.0f, -10.0f },
+					{   9.0f,   0.0f }
+				};
+
+			Boid TEST_boid;
+			TEST_boid.angle        = 0.0f;
+			TEST_boid.position     = { 3.0f, 4.0f };
+			TEST_boid.velocity     = 0.0f;
+			TEST_boid.acceleration = 0.1f;
 
 			if (window_renderer)
 			{
@@ -83,9 +117,15 @@ int main(int, char**)
 						}
 					}
 
+					//
+					// Clears.
+					//
 					SDL_SetRenderDrawColor(window_renderer, 0, 0, 0, 255);
 					SDL_RenderClear(window_renderer);
 
+					//
+					// Grid.
+					//
 					SDL_SetRenderDrawColor(window_renderer, 255, 255, 255, 255);
 					FOR_RANGE(i, 0, WINDOW_WIDTH / pixels_per_meter + 1)
 					{
@@ -98,6 +138,35 @@ int main(int, char**)
 						i32 y = i * pixels_per_meter;
 						SDL_RenderDrawLine(window_renderer, 0, y, WINDOW_WIDTH, y);
 					}
+
+					//
+					// Boids.
+					//
+					vf2 direction = { cos_f32(TEST_boid.angle), sin_f32(TEST_boid.angle) };
+
+					// @TODO@ Frame-rate independence!
+					TEST_boid.angle        += 0.001f;
+					TEST_boid.acceleration += 0;
+					TEST_boid.velocity     += TEST_boid.acceleration;
+					TEST_boid.position     += direction * TEST_boid.velocity * 0.000001f;
+
+					SDL_SetRenderDrawColor(window_renderer, 222, 173, 38, 255);
+
+					vf2 offset = TEST_boid.position * static_cast<f32>(pixels_per_meter);
+
+					SDL_Point boid_pixel_points[ARRAY_CAPACITY(BOID_VERTICES)];
+
+					FOR_ELEMS(boid_pixel_point, boid_pixel_points)
+					{
+						*boid_pixel_point =
+							{
+								static_cast<i32>(BOID_VERTICES[boid_pixel_point_index].x * direction.x - BOID_VERTICES[boid_pixel_point_index].y * direction.y + offset.x),
+								static_cast<i32>(BOID_VERTICES[boid_pixel_point_index].x * direction.y + BOID_VERTICES[boid_pixel_point_index].y * direction.x + offset.y)
+							};
+					}
+
+					SDL_RenderDrawLines(window_renderer, boid_pixel_points, ARRAY_CAPACITY(boid_pixel_points));
+					SDL_RenderDrawPoint(window_renderer, static_cast<i32>(offset.x), static_cast<i32>(offset.y));
 
 					SDL_RenderPresent(window_renderer);
 				}
