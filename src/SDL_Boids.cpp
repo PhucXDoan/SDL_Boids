@@ -5,7 +5,6 @@
 // @TODO@ Should resizing of window be allowed?
 // @TODO@ Make grid centered?
 // @TODO@ Flip the rendering upside down.
-// @TODO@ Frame-rate independence.
 
 #define DEBUG 1
 #include "unified.h"
@@ -20,10 +19,12 @@ flag_struct (ArrowKey, u32)
 
 struct Boid
 {
+	f32 angular_acceleration;
+	f32 angular_velocity;
 	f32 angle;
-	vf2 position;
-	f32 velocity;
 	f32 acceleration;
+	f32 velocity;
+	vf2 position;
 };
 
 // @TODO@ Implement the trig functions.
@@ -55,25 +56,28 @@ int main(int, char**)
 		{
 			SDL_Renderer* window_renderer = SDL_CreateRenderer(window, -1, 0);
 
-			constexpr vf2 BOID_VERTICES[] =
-				{
-					{   9.0f,   0.0f },
-					{ -11.0f,  10.0f },
-					{  -3.0f,   0.0f },
-					{ -11.0f, -10.0f },
-					{   9.0f,   0.0f }
-				};
-
-			Boid TEST_boid;
-			TEST_boid.angle        = 0.0f;
-			TEST_boid.position     = { 3.0f, 4.0f };
-			TEST_boid.velocity     = 0.0f;
-			TEST_boid.acceleration = 0.1f;
-
 			if (window_renderer)
 			{
 				i32 pixels_per_meter = 100;
 
+				constexpr vf2 BOID_VERTICES[] =
+					{
+						{   9.0f,   0.0f },
+						{ -11.0f,  10.0f },
+						{  -3.0f,   0.0f },
+						{ -11.0f, -10.0f },
+						{   9.0f,   0.0f }
+					};
+
+				Boid TEST_boid;
+				TEST_boid.angular_acceleration = 0.0f;
+				TEST_boid.angular_velocity     = 0.0f;
+				TEST_boid.angle                = 0.0f;
+				TEST_boid.acceleration         = 0.0f;
+				TEST_boid.velocity             = 0.0f;
+				TEST_boid.position             = { 3.0f, 4.0f };
+
+				u64    performance_count = SDL_GetPerformanceCounter();
 				bool32 running = true;
 				while (running)
 				{
@@ -117,6 +121,13 @@ int main(int, char**)
 						}
 					}
 
+					f32 delta_seconds;
+					{
+						u64 new_performance_count = SDL_GetPerformanceCounter();
+						delta_seconds = static_cast<f32>(new_performance_count - performance_count) / SDL_GetPerformanceFrequency();
+						performance_count = new_performance_count;
+					}
+
 					//
 					// Clears.
 					//
@@ -142,13 +153,16 @@ int main(int, char**)
 					//
 					// Boids.
 					//
+
+					TEST_boid.angular_acceleration  = 0.05f;
+					TEST_boid.angular_velocity     += TEST_boid.angular_acceleration * delta_seconds;
+					TEST_boid.angle                += TEST_boid.angular_velocity * delta_seconds;
+
 					vf2 direction = { cos_f32(TEST_boid.angle), sin_f32(TEST_boid.angle) };
 
-					// @TODO@ Frame-rate independence!
-					TEST_boid.angle        += 0.001f;
-					TEST_boid.acceleration += 0;
-					TEST_boid.velocity     += TEST_boid.acceleration;
-					TEST_boid.position     += direction * TEST_boid.velocity * 0.000001f;
+					TEST_boid.acceleration   = 0.1f;
+					TEST_boid.velocity      += TEST_boid.acceleration * delta_seconds;
+					TEST_boid.position      += TEST_boid.velocity * direction * delta_seconds;
 
 					SDL_SetRenderDrawColor(window_renderer, 222, 173, 38, 255);
 
