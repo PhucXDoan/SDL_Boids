@@ -30,99 +30,117 @@ int main(int, char**)
 
 			if (window_surface)
 			{
-				constexpr strlit TEST_IMAGE_FILE_PATHS[] =
-					{
-						"./ralph-0-quarter.bmp",
-						"./ralph-paperball-down.bmp",
-						"./ralph-paperball-up.bmp",
-						"./ralph-water-down.bmp",
-						"./ralph-water-up.bmp"
-					};
+				SDL_Renderer* window_renderer = SDL_CreateRenderer(window, -1, 0);
 
-				SDL_Surface* test_surfaces[ARRAY_CAPACITY(TEST_IMAGE_FILE_PATHS)];
-
-				FOR_ELEMS(test_image_file_path, TEST_IMAGE_FILE_PATHS)
+				if (window_renderer)
 				{
-					test_surfaces[test_image_file_path_index] = SDL_LoadBMP(*test_image_file_path);
-
-					if (!test_surfaces[test_image_file_path_index])
-					{
-						fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-						ASSERT(!"Could not load this bitmap.");
-						// @TODO@ How should the case of failing be handled?
-						// Doing `return -1` or such skips the deallocation or whatever, could be bad.
-					}
-				}
-
-				bool32   running            = true;
-				ArrowKey pressed_arrow_keys = {};
-
-				while (running)
-				{
-					{
-						SDL_Event event;
-						while (SDL_PollEvent(&event))
+					constexpr strlit TEST_BMP_FILE_PATHS[] =
 						{
-							switch (event.type)
+							"./ralph-0-quarter.bmp",
+							"./ralph-paperball-down.bmp",
+							"./ralph-paperball-up.bmp",
+							"./ralph-water-down.bmp",
+							"./ralph-water-up.bmp"
+						};
+
+					SDL_Texture* test_textures[ARRAY_CAPACITY(TEST_BMP_FILE_PATHS)];
+
+					FOR_ELEMS(test_texture, test_textures)
+					{
+						SDL_Surface* bmp_surface = SDL_LoadBMP(TEST_BMP_FILE_PATHS[test_texture_index]);
+
+						if (bmp_surface)
+						{
+							*test_texture = SDL_CreateTextureFromSurface(window_renderer, bmp_surface);
+						}
+						else
+						{
+							fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
+							ASSERT(!"Could not load this bitmap.");
+							// @TODO@ How should the case of failing be handled?
+							// Doing `return -1` or such skips the deallocation or whatever, could be bad.
+						}
+
+						SDL_FreeSurface(bmp_surface);
+					}
+
+					bool32   running            = true;
+					ArrowKey pressed_arrow_keys = {};
+
+					while (running)
+					{
+						{
+							SDL_Event event;
+							while (SDL_PollEvent(&event))
 							{
-								case SDL_QUIT:
+								switch (event.type)
 								{
-									running = false;
-								} break;
-
-								case SDL_KEYDOWN:
-								case SDL_KEYUP:
-								{
-									switch (event.key.keysym.sym)
+									case SDL_QUIT:
 									{
-										case SDLK_LEFT:
-										case SDLK_RIGHT:
-										case SDLK_DOWN:
-										case SDLK_UP:
-										{
-											ArrowKey arrow_key =
-												event.key.keysym.sym == SDLK_LEFT  ? ArrowKey::left  :
-												event.key.keysym.sym == SDLK_RIGHT ? ArrowKey::right :
-												event.key.keysym.sym == SDLK_DOWN  ? ArrowKey::down  : ArrowKey::up;
+										running = false;
+									} break;
 
-											if (event.key.state == SDL_PRESSED && !event.key.repeat)
+									case SDL_KEYDOWN:
+									case SDL_KEYUP:
+									{
+										switch (event.key.keysym.sym)
+										{
+											case SDLK_LEFT:
+											case SDLK_RIGHT:
+											case SDLK_DOWN:
+											case SDLK_UP:
 											{
-												pressed_arrow_keys |= arrow_key;
-											}
-											else if (event.key.state == SDL_RELEASED)
-											{
-												pressed_arrow_keys &= ~arrow_key;
-											}
-										} break;
-									}
-								} break;
+												ArrowKey arrow_key =
+													event.key.keysym.sym == SDLK_LEFT  ? ArrowKey::left  :
+													event.key.keysym.sym == SDLK_RIGHT ? ArrowKey::right :
+													event.key.keysym.sym == SDLK_DOWN  ? ArrowKey::down  : ArrowKey::up;
+
+												if (event.key.state == SDL_PRESSED && !event.key.repeat)
+												{
+													pressed_arrow_keys |= arrow_key;
+												}
+												else if (event.key.state == SDL_RELEASED)
+												{
+													pressed_arrow_keys &= ~arrow_key;
+												}
+											} break;
+										}
+									} break;
+								}
 							}
 						}
+
+						SDL_RenderClear(window_renderer);
+
+						SDL_RenderCopy
+						(
+							window_renderer,
+							test_textures
+							[
+								+(pressed_arrow_keys & ArrowKey::left ) ? 1 :
+								+(pressed_arrow_keys & ArrowKey::right) ? 2 :
+								+(pressed_arrow_keys & ArrowKey::down ) ? 3 :
+								+(pressed_arrow_keys & ArrowKey::up   ) ? 4 : 0
+							],
+							0,
+							0
+						);
+
+						SDL_RenderPresent(window_renderer);
 					}
 
-					SDL_FillRect(window_surface, 0, SDL_MapRGB(window_surface->format, 64, 16, 8));
-
-					SDL_BlitSurface
-					(
-						test_surfaces
-						[
-							+(pressed_arrow_keys & ArrowKey::left ) ? 1 :
-							+(pressed_arrow_keys & ArrowKey::right) ? 2 :
-							+(pressed_arrow_keys & ArrowKey::down ) ? 3 :
-							+(pressed_arrow_keys & ArrowKey::up   ) ? 4 : 0
-						],
-						0,
-						window_surface,
-						0
-					);
-
-					SDL_UpdateWindowSurface(window);
+					FOR_ELEMS(test_texture, test_textures)
+					{
+						SDL_DestroyTexture(*test_texture);
+					}
 				}
-
-				FOR_ELEMS(test_surface, test_surfaces)
+				else
 				{
-					SDL_FreeSurface(*test_surface);
+					fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
+					ASSERT(!"SDL could not create a surface for the window.");
 				}
+
+				SDL_DestroyRenderer(window_renderer);
 			}
 			else
 			{
