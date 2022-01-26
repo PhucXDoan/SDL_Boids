@@ -165,3 +165,5 @@ internal inline constexpr vf4&   operator*=(vf4& v, f32 k) { return v = v * k; }
 internal inline constexpr vf2&   operator/=(vf2& v, f32 k) { return v = v / k; }
 internal inline constexpr vf3&   operator/=(vf3& v, f32 k) { return v = v / k; }
 internal inline constexpr vf4&   operator/=(vf4& v, f32 k) { return v = v / k; }
+
+constexpr f32 TAU = 6.28318530717958647692f;
