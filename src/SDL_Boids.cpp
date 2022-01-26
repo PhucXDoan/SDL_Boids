@@ -2,34 +2,81 @@
 #include <SDL.h>
 #include "unified.h"
 
-const int SCREEN_WIDTH  = 640;
-const int SCREEN_HEIGHT = 480;
-
 int main(int, char**)
 {
-	SDL_Window*  window         = 0;
-	SDL_Surface* screen_surface = 0;
-
-	if (SDL_Init(SDL_INIT_VIDEO) < 0)
+	if (SDL_Init(SDL_INIT_VIDEO))
 	{
-		fprintf(stderr, "could not initialize sdl2: %s\n", SDL_GetError());
-		return 1;
+		printf("SDL_Error: '%s'\n", SDL_GetError());
+		ASSERT(!"SDL could not initialize video.");
+	}
+	else
+	{
+		constexpr i32 WINDOW_WIDTH  = 1280;
+		constexpr i32 WINDOW_HEIGHT = 720;
+
+		SDL_Window* window = SDL_CreateWindow("SDL_Boids", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
+
+		if (window)
+		{
+			SDL_Surface* window_surface = SDL_GetWindowSurface(window);
+
+			if (window_surface)
+			{
+				constexpr strlit TEST_IMAGE_FILE_PATH = "./ralph-quarter.bmp";
+				SDL_Surface* test_surface = SDL_LoadBMP(TEST_IMAGE_FILE_PATH);
+
+				if (test_surface)
+				{
+					bool32 running = true;
+
+					while (running)
+					{
+						{
+							SDL_Event event;
+							while (SDL_PollEvent(&event))
+							{
+								switch (event.type)
+								{
+									case SDL_QUIT:
+									{
+										running = false;
+									} break;
+								}
+							}
+						}
+
+						SDL_FillRect(window_surface, 0, SDL_MapRGB(window_surface->format, 64, 16, 8));
+
+						SDL_BlitSurface(test_surface, 0, window_surface, 0);
+
+						SDL_UpdateWindowSurface(window);
+					}
+				}
+				else
+				{
+					printf("SDL_Error: '%s'\n", SDL_GetError());
+					ASSERT(!"Could not load the bitmap.");
+				}
+
+				SDL_FreeSurface(test_surface);
+			}
+			else
+			{
+				printf("SDL_Error: '%s'\n", SDL_GetError());
+				ASSERT(!"SDL could not create a surface for the window.");
+			}
+
+			SDL_FreeSurface(window_surface);
+		}
+		else
+		{
+			printf("SDL_Error: '%s'\n", SDL_GetError());
+			ASSERT(!"SDL could not create window.");
+		}
+
+		SDL_DestroyWindow(window);
 	}
 
-	window = SDL_CreateWindow("hello_sdl2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-
-	if (!window)
-	{
-		fprintf(stderr, "could not create window: %s\n", SDL_GetError());
-		return 1;
-	}
-
-	screen_surface = SDL_GetWindowSurface(window);
-
-	SDL_FillRect(screen_surface, 0, SDL_MapRGB(screen_surface->format, 0xFF, 0xFF, 0xFF));
-	SDL_UpdateWindowSurface(window);
-	SDL_Delay(2000);
-	SDL_DestroyWindow(window);
 	SDL_Quit();
 
 	return 0;
