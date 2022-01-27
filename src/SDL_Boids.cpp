@@ -160,21 +160,15 @@ IndexBufferNode* pop_from_available_index_buffer_node(Map* map)
 ChunkNode** find_chunk_node(Map* map, i32 x, i32 y)
 {
 	// @TODO@ Better hash function.
-	i32 starting_index = (x * 7 + y * 13) % ARRAY_CAPACITY(map->chunk_node_hash_table);
+	i32         hash       = (x * 7 + y * 13) % ARRAY_CAPACITY(map->chunk_node_hash_table);
+	ChunkNode** chunk_node = &map->chunk_node_hash_table[hash];
 
-	FOR_RANGE(offset, 0, ARRAY_CAPACITY(map->chunk_node_hash_table))
+	while (*chunk_node && ((*chunk_node)->x != x || (*chunk_node)->y != y))
 	{
-		ChunkNode** chunk_node = &map->chunk_node_hash_table[(starting_index + offset) % ARRAY_CAPACITY(map->chunk_node_hash_table)];
-
-		if (*chunk_node == 0 || (*chunk_node)->x == x && (*chunk_node)->y == y)
-		{
-			return chunk_node;
-		}
+		chunk_node = &(*chunk_node)->next_node;
 	}
 
-	ASSERT(!"No more space in hash table!");
-
-	return 0;
+	return chunk_node;
 }
 
 void push_index_into_map(Map* map, i32 x, i32 y, i32 index)
@@ -262,9 +256,10 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 
 	if (!(*chunk_node)->index_buffer_node)
 	{
+		ChunkNode* next_node = (*chunk_node)->next_node;
 		(*chunk_node)->next_node  = map->available_chunk_node;
 		map->available_chunk_node = *chunk_node;
-		*chunk_node               = 0;
+		*chunk_node               = next_node;
 	}
 }
 
@@ -297,7 +292,7 @@ int main(int, char**)
 						{  -5.0f,  -5.0f },
 						{   5.0f,   0.0f }
 					};
-				constexpr i32 BOID_AMOUNT   = 512;
+				constexpr i32 BOID_AMOUNT   = 2048;
 				constexpr f32 BOID_VELOCITY = 1.5f;
 
 				// @TODO@ Perhaps malloc these.
@@ -330,7 +325,7 @@ int main(int, char**)
 				FOR_ELEMS(new_boid, *new_boids)
 				{
 					new_boid->angle    = modulo_f32(static_cast<f32>(new_boid_index), TAU);
-					new_boid->position = { new_boid_index % 35 / 3.0f, new_boid_index / 35 / 3.0f };
+					new_boid->position = { new_boid_index % 40 / 3.0f, new_boid_index / 40 / 3.0f };
 
 					push_index_into_map(&map, static_cast<i32>(new_boid->position.x), static_cast<i32>(new_boid->position.y), new_boid_index);
 				}
@@ -444,33 +439,36 @@ int main(int, char**)
 						{
 							FOR_RANGE(dy, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
 							{
-								ChunkNode** chunk_node = find_chunk_node(&map, static_cast<i32>(old_boid->position.x), static_cast<i32>(old_boid->position.y));
+								ChunkNode** chunk_node = find_chunk_node(&map, static_cast<i32>(old_boid->position.x) + dx, static_cast<i32>(old_boid->position.y) + dy);
 
 								ASSERT(chunk_node);
-								ASSERT(*chunk_node);
-								ASSERT((*chunk_node)->index_buffer_node);
 
-								IndexBufferNode* current_index_buffer_node = (*chunk_node)->index_buffer_node;
-
-								while (current_index_buffer_node)
+								if (*chunk_node)
 								{
-									FOR_ELEMS(other_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
+									ASSERT((*chunk_node)->index_buffer_node);
+
+									IndexBufferNode* current_index_buffer_node = (*chunk_node)->index_buffer_node;
+
+									while (current_index_buffer_node)
 									{
-										Boid* other_old_boid = &(*old_boids)[*other_index];
-
-										vf2 to_other          = other_old_boid->position - old_boid->position;
-										f32 distance_to_other = norm(to_other);
-
-										if (other_old_boid != old_boid && 0.0f < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
+										FOR_ELEMS(other_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
 										{
-											++neighboring_boid_count;
-											average_neighboring_boid_repulsion        -= normalize(to_other) * (1.0f - distance_to_other / BOID_NEIGHBORHOOD_RADIUS);
-											average_neighboring_boid_facing_direction += { cos_f32(other_old_boid->angle), sin_f32(other_old_boid->angle) };
-											cohesion_direction                        += other_old_boid->position;
-										}
-									}
+											Boid* other_old_boid = &(*old_boids)[*other_index];
 
-									current_index_buffer_node = current_index_buffer_node->next_node;
+											vf2 to_other          = other_old_boid->position - old_boid->position;
+											f32 distance_to_other = norm(to_other);
+
+											if (other_old_boid != old_boid && 0.0f < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
+											{
+												++neighboring_boid_count;
+												average_neighboring_boid_repulsion        -= normalize(to_other) * (1.0f - distance_to_other / BOID_NEIGHBORHOOD_RADIUS);
+												average_neighboring_boid_facing_direction += { cos_f32(other_old_boid->angle), sin_f32(other_old_boid->angle) };
+												cohesion_direction                        += other_old_boid->position;
+											}
+										}
+
+										current_index_buffer_node = current_index_buffer_node->next_node;
+									}
 								}
 							}
 						}
@@ -501,8 +499,8 @@ int main(int, char**)
 						}
 
 						constexpr f32 COHESION_WEIGHT   = 1.0f;
-						constexpr f32 ALIGNMENT_WEIGHT  = 1.5f;
-						constexpr f32 SEPARATION_WEIGHT = 1.5f;
+						constexpr f32 ALIGNMENT_WEIGHT  = 2.5f;
+						constexpr f32 SEPARATION_WEIGHT = 3.5f;
 						constexpr f32 BORDER_FORCE      = 15.0f;
 
 						vf2 steering = { 0.0f, 0.0f };
