@@ -9,6 +9,7 @@
 #define DEBUG 1
 #include "unified.h"
 
+#if 0
 flag_struct (ArrowKey, u32)
 {
 	left  = 1 << 0,
@@ -16,11 +17,34 @@ flag_struct (ArrowKey, u32)
 	down  = 1 << 2,
 	up    = 1 << 3
 };
+#endif
 
 struct Boid
 {
 	f32 angle;
 	vf2 position;
+};
+
+struct IndexBufferNode
+{
+	i32              index_buffer[32];
+	i32              index_count;
+	IndexBufferNode* next_node;
+};
+
+struct ChunkNode
+{
+	i32              x;
+	i32              y;
+	IndexBufferNode* index_buffer_node;
+	ChunkNode*       next_node;
+};
+
+struct Map
+{
+	IndexBufferNode* available_index_buffer_node;
+	ChunkNode*       available_chunk_node;
+	ChunkNode*       chunk_node_hash_table[256];
 };
 
 // @TODO@ Implement the math functions.
@@ -50,6 +74,17 @@ inline vf2 normalize(vf2 v)
 	f32 n = norm(v);
 	ASSERT(n);
 	return v / n;
+}
+
+inline constexpr i32 floor_f32(f32 f)
+{
+	i32 t = static_cast<i32>(f);
+	return t + ((f < 0.0f && f - t) ? -1 : 0);
+}
+
+inline constexpr i32 ceil_f32(f32 f)
+{
+	return -floor_f32(-f);
 }
 
 inline f32 modulo_f32(f32 n, f32 m)
@@ -112,6 +147,127 @@ void DrawCircle(SDL_Renderer* renderer, i32 centerX, i32 centerY, i32 radius)
 	}
 }
 
+IndexBufferNode* pop_from_available_index_buffer_node(Map* map)
+{
+	ASSERT(map->available_index_buffer_node);
+
+	IndexBufferNode* node = map->available_index_buffer_node;
+	map->available_index_buffer_node = map->available_index_buffer_node->next_node;
+
+	return node;
+}
+
+ChunkNode** find_chunk_node(Map* map, i32 x, i32 y)
+{
+	// @TODO@ Better hash function.
+	i32 starting_index = (x * 7 + y * 13) % ARRAY_CAPACITY(map->chunk_node_hash_table);
+
+	FOR_RANGE(offset, 0, ARRAY_CAPACITY(map->chunk_node_hash_table))
+	{
+		ChunkNode** chunk_node = &map->chunk_node_hash_table[(starting_index + offset) % ARRAY_CAPACITY(map->chunk_node_hash_table)];
+
+		if (*chunk_node == 0 || (*chunk_node)->x == x && (*chunk_node)->y == y)
+		{
+			return chunk_node;
+		}
+	}
+
+	ASSERT(!"No more space in hash table!");
+
+	return 0;
+}
+
+void push_index_into_map(Map* map, i32 x, i32 y, i32 index)
+{
+	ChunkNode** chunk_node = find_chunk_node(map, x, y);
+
+	if (*chunk_node)
+	{
+		ASSERT((*chunk_node)->x == x && (*chunk_node)->y == y);
+		ASSERT((*chunk_node)->index_buffer_node);
+
+		if ((*chunk_node)->index_buffer_node->index_count >= ARRAY_CAPACITY(IndexBufferNode, index_buffer))
+		{
+			IndexBufferNode* new_head = pop_from_available_index_buffer_node(map);
+			new_head->index_count            = 0;
+			new_head->next_node              = (*chunk_node)->index_buffer_node;
+			(*chunk_node)->index_buffer_node = new_head;
+		}
+
+		ASSERT(IN_RANGE((*chunk_node)->index_buffer_node->index_count, 0, ARRAY_CAPACITY(IndexBufferNode, index_buffer)));
+		(*chunk_node)->index_buffer_node->index_buffer[(*chunk_node)->index_buffer_node->index_count] = index;
+		++(*chunk_node)->index_buffer_node->index_count;
+	}
+	else
+	{
+		ASSERT(map->available_chunk_node);
+
+		*chunk_node               = map->available_chunk_node;
+		map->available_chunk_node = map->available_chunk_node->next_node;
+
+		ASSERT(!(*chunk_node)->index_buffer_node);
+
+		(*chunk_node)->x                                  = x;
+		(*chunk_node)->y                                  = y;
+		(*chunk_node)->index_buffer_node                  = pop_from_available_index_buffer_node(map);
+		(*chunk_node)->index_buffer_node->index_buffer[0] = index;
+		(*chunk_node)->index_buffer_node->index_count     = 1;
+		(*chunk_node)->index_buffer_node->next_node       = 0;
+		(*chunk_node)->next_node                          = 0;
+	}
+}
+
+void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
+{
+	ChunkNode** chunk_node = find_chunk_node(map, x, y);
+
+	ASSERT(*chunk_node);
+	ASSERT((*chunk_node)->x == x && (*chunk_node)->y == y);
+	ASSERT((*chunk_node)->index_buffer_node);
+
+	IndexBufferNode** current_index_buffer_node = &(*chunk_node)->index_buffer_node;
+	bool32            is_hunting                = true;
+
+	while (is_hunting && *current_index_buffer_node)
+	{
+		FOR_ELEMS(other_index, (*current_index_buffer_node)->index_buffer, (*current_index_buffer_node)->index_count)
+		{
+			if (*other_index == index)
+			{
+				is_hunting = false;
+				--(*current_index_buffer_node)->index_count;
+
+				ASSERT(IN_RANGE((*current_index_buffer_node)->index_count, 0, ARRAY_CAPACITY(IndexBufferNode, index_buffer)));
+
+				if ((*current_index_buffer_node)->index_count)
+				{
+					(*current_index_buffer_node)->index_buffer[other_index_index] = (*current_index_buffer_node)->index_buffer[(*current_index_buffer_node)->index_count];
+				}
+				else
+				{
+					IndexBufferNode* next_node = (*current_index_buffer_node)->next_node;
+					(*current_index_buffer_node)->next_node = map->available_index_buffer_node;
+					map->available_index_buffer_node        = *current_index_buffer_node;
+					*current_index_buffer_node              = next_node;
+				}
+
+				break;
+			}
+		}
+
+		current_index_buffer_node = &(*current_index_buffer_node)->next_node;
+	}
+
+	ASSERT(!is_hunting);
+
+	if (!(*chunk_node)->index_buffer_node)
+	{
+		(*chunk_node)->next_node  = map->available_chunk_node;
+		map->available_chunk_node = *chunk_node;
+		*chunk_node               = 0;
+	}
+}
+
 int main(int, char**)
 {
 	if (SDL_Init(SDL_INIT_VIDEO))
@@ -141,9 +297,31 @@ int main(int, char**)
 						{  -5.0f,  -5.0f },
 						{   5.0f,   0.0f }
 					};
-				constexpr i32 BOID_AMOUNT              = 1024;
-				constexpr f32 BOID_VELOCITY            = 1.5f;
-				constexpr f32 BOID_NEIGHBORHOOD_RADIUS = 1.0f;
+				constexpr i32 BOID_AMOUNT   = 512;
+				constexpr f32 BOID_VELOCITY = 1.5f;
+
+				// @TODO@ Perhaps malloc these.
+				IndexBufferNode TEMP_available_index_buffer_nodes[256];
+				FOR_RANGE(i, 0, ARRAY_CAPACITY(TEMP_available_index_buffer_nodes) - 1)
+				{
+					TEMP_available_index_buffer_nodes[i].next_node = &TEMP_available_index_buffer_nodes[i + 1];
+				}
+				TEMP_available_index_buffer_nodes[ARRAY_CAPACITY(TEMP_available_index_buffer_nodes) - 1].next_node = 0;
+
+				ChunkNode TEMP_available_chunk_nodes[ARRAY_CAPACITY(Map, chunk_node_hash_table)];
+				FOR_RANGE(i, 0, ARRAY_CAPACITY(TEMP_available_chunk_nodes) - 1)
+				{
+					TEMP_available_chunk_nodes[i].next_node = &TEMP_available_chunk_nodes[i + 1];
+				}
+				TEMP_available_chunk_nodes[ARRAY_CAPACITY(TEMP_available_chunk_nodes) - 1].next_node = 0;
+
+				Map map;
+				map.available_index_buffer_node = &TEMP_available_index_buffer_nodes[0];
+				map.available_chunk_node        = &TEMP_available_chunk_nodes[0];
+				FOR_ELEMS(chunk_node, map.chunk_node_hash_table)
+				{
+					*chunk_node = 0;
+				}
 
 				Boid boid_swap_arrays[2][BOID_AMOUNT];
 				Boid (*new_boids)[BOID_AMOUNT] = &boid_swap_arrays[0];
@@ -153,6 +331,8 @@ int main(int, char**)
 				{
 					new_boid->angle    = modulo_f32(static_cast<f32>(new_boid_index), TAU);
 					new_boid->position = { new_boid_index % 35 / 3.0f, new_boid_index / 35 / 3.0f };
+
+					push_index_into_map(&map, static_cast<i32>(new_boid->position.x), static_cast<i32>(new_boid->position.y), new_boid_index);
 				}
 
 				u64    performance_count = SDL_GetPerformanceCounter();
@@ -211,6 +391,21 @@ int main(int, char**)
 					SDL_SetRenderDrawColor(window_renderer, 0, 0, 0, 255);
 					SDL_RenderClear(window_renderer);
 
+
+					//
+					// Spatial Partition Display.
+					//
+
+					SDL_SetRenderDrawColor(window_renderer, 128, 32, 32, 255);
+					FOR_ELEMS(chunk_node, map.chunk_node_hash_table)
+					{
+						if (*chunk_node)
+						{
+							SDL_Rect rect = { (*chunk_node)->x * PIXELS_PER_METER, WINDOW_HEIGHT - 1 - ((*chunk_node)->y + 1) * PIXELS_PER_METER, PIXELS_PER_METER, PIXELS_PER_METER };
+							SDL_RenderFillRect(window_renderer, &rect);
+						}
+					}
+
 					//
 					// Grid.
 					//
@@ -244,17 +439,39 @@ int main(int, char**)
 						vf2 cohesion_direction                        = { 0.0f, 0.0f };
 						i32 neighboring_boid_count                    = 0;
 
-						FOR_ELEMS(other_old_boid, *old_boids)
+						constexpr f32 BOID_NEIGHBORHOOD_RADIUS = 1.0f;
+						FOR_RANGE(dx, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
 						{
-							vf2 to_other          = other_old_boid->position - old_boid->position;
-							f32 distance_to_other = norm(to_other);
-
-							if (other_old_boid != old_boid && 0.0f < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
+							FOR_RANGE(dy, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
 							{
-								++neighboring_boid_count;
-								average_neighboring_boid_repulsion        -= normalize(to_other) * (1.0f - distance_to_other / BOID_NEIGHBORHOOD_RADIUS);
-								average_neighboring_boid_facing_direction += { cos_f32(other_old_boid->angle), sin_f32(other_old_boid->angle) };
-								cohesion_direction                        += other_old_boid->position;
+								ChunkNode** chunk_node = find_chunk_node(&map, static_cast<i32>(old_boid->position.x), static_cast<i32>(old_boid->position.y));
+
+								ASSERT(chunk_node);
+								ASSERT(*chunk_node);
+								ASSERT((*chunk_node)->index_buffer_node);
+
+								IndexBufferNode* current_index_buffer_node = (*chunk_node)->index_buffer_node;
+
+								while (current_index_buffer_node)
+								{
+									FOR_ELEMS(other_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
+									{
+										Boid* other_old_boid = &(*old_boids)[*other_index];
+
+										vf2 to_other          = other_old_boid->position - old_boid->position;
+										f32 distance_to_other = norm(to_other);
+
+										if (other_old_boid != old_boid && 0.0f < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
+										{
+											++neighboring_boid_count;
+											average_neighboring_boid_repulsion        -= normalize(to_other) * (1.0f - distance_to_other / BOID_NEIGHBORHOOD_RADIUS);
+											average_neighboring_boid_facing_direction += { cos_f32(other_old_boid->angle), sin_f32(other_old_boid->angle) };
+											cohesion_direction                        += other_old_boid->position;
+										}
+									}
+
+									current_index_buffer_node = current_index_buffer_node->next_node;
+								}
 							}
 						}
 
@@ -285,7 +502,7 @@ int main(int, char**)
 
 						constexpr f32 COHESION_WEIGHT   = 1.0f;
 						constexpr f32 ALIGNMENT_WEIGHT  = 1.5f;
-						constexpr f32 SEPARATION_WEIGHT = 2.0f;
+						constexpr f32 SEPARATION_WEIGHT = 1.5f;
 						constexpr f32 BORDER_FORCE      = 15.0f;
 
 						vf2 steering = { 0.0f, 0.0f };
@@ -306,9 +523,14 @@ int main(int, char**)
 							}
 						}
 
-						new_boid->angle = modulo_f32(old_boid->angle + delta_angle * 0.5f * delta_seconds, TAU);
-
+						new_boid->angle    = modulo_f32(old_boid->angle + delta_angle * 0.5f * delta_seconds, TAU);
 						new_boid->position = old_boid->position + BOID_VELOCITY * old_direction * delta_seconds;
+
+						if (static_cast<i32>(new_boid->position.x) != static_cast<i32>(old_boid->position.x) || static_cast<i32>(new_boid->position.y) != static_cast<i32>(old_boid->position.y))
+						{
+							remove_index_from_map(&map, static_cast<i32>(old_boid->position.x), static_cast<i32>(old_boid->position.y), new_boid_index);
+							push_index_into_map  (&map, static_cast<i32>(new_boid->position.x), static_cast<i32>(new_boid->position.y), new_boid_index);
+						}
 
 						//
 						// Boid Rendering.
