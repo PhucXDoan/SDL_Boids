@@ -135,14 +135,14 @@ int main(int, char**)
 				constexpr i32 PIXELS_PER_METER = 100;
 				constexpr vf2 BOID_VERTICES[] =
 					{
-						{   9.0f,   0.0f },
-						{ -11.0f,  10.0f },
-						{  -3.0f,   0.0f },
-						{ -11.0f, -10.0f },
-						{   9.0f,   0.0f }
+						{   5.0f,   0.0f },
+						{  -5.0f,   5.0f },
+						{  -1.0f,   0.0f },
+						{  -5.0f,  -5.0f },
+						{   5.0f,   0.0f }
 					};
-				constexpr i32 BOID_AMOUNT              = 32;
-				constexpr f32 BOID_VELOCITY            = 0.5f;
+				constexpr i32 BOID_AMOUNT              = 1024;
+				constexpr f32 BOID_VELOCITY            = 1.5f;
 				constexpr f32 BOID_NEIGHBORHOOD_RADIUS = 1.0f;
 
 				Boid boid_swap_arrays[2][BOID_AMOUNT];
@@ -152,7 +152,7 @@ int main(int, char**)
 				FOR_ELEMS(new_boid, *new_boids)
 				{
 					new_boid->angle    = modulo_f32(static_cast<f32>(new_boid_index), TAU);
-					new_boid->position = { 4.0f + new_boid_index % 8 / 3.0f, 3.0f + new_boid_index / 8 / 3.0f };
+					new_boid->position = { new_boid_index % 35 / 3.0f, new_boid_index / 35 / 3.0f };
 				}
 
 				u64    performance_count = SDL_GetPerformanceCounter();
@@ -283,12 +283,17 @@ int main(int, char**)
 							}
 						}
 
+						constexpr f32 COHESION_WEIGHT   = 1.0f;
+						constexpr f32 ALIGNMENT_WEIGHT  = 1.5f;
+						constexpr f32 SEPARATION_WEIGHT = 2.0f;
+						constexpr f32 BORDER_FORCE      = 15.0f;
+
 						vf2 steering = { 0.0f, 0.0f };
-						steering += cohesion_direction + average_neighboring_boid_facing_direction + average_neighboring_boid_repulsion;
-						steering += vf2 { -1.0f,  0.0 } * 15.0f * square(square(square(square(square(       old_boid->position.x / (static_cast<f32>(WINDOW_WIDTH ) / PIXELS_PER_METER))))));
-						steering += vf2 {  1.0f,  0.0 } * 15.0f * square(square(square(square(square(1.0f - old_boid->position.x / (static_cast<f32>(WINDOW_WIDTH ) / PIXELS_PER_METER))))));
-						steering += vf2 {  0.0f, -1.0 } * 15.0f * square(square(square(square(square(       old_boid->position.y / (static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER))))));
-						steering += vf2 {  0.0f,  1.0 } * 15.0f * square(square(square(square(square(1.0f - old_boid->position.y / (static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER))))));
+						steering += cohesion_direction * COHESION_WEIGHT + average_neighboring_boid_facing_direction * ALIGNMENT_WEIGHT + average_neighboring_boid_repulsion * SEPARATION_WEIGHT;
+						steering += vf2 { -1.0f,  0.0f } * BORDER_FORCE * square(square(square(square(square(CLAMP(       old_boid->position.x / (static_cast<f32>(WINDOW_WIDTH ) / PIXELS_PER_METER), 0.0f, 1.0f))))));
+						steering += vf2 {  1.0f,  0.0f } * BORDER_FORCE * square(square(square(square(square(CLAMP(1.0f - old_boid->position.x / (static_cast<f32>(WINDOW_WIDTH ) / PIXELS_PER_METER), 0.0f, 1.0f))))));
+						steering += vf2 {  0.0f, -1.0f } * BORDER_FORCE * square(square(square(square(square(CLAMP(       old_boid->position.y / (static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER), 0.0f, 1.0f))))));
+						steering += vf2 {  0.0f,  1.0f } * BORDER_FORCE * square(square(square(square(square(CLAMP(1.0f - old_boid->position.y / (static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER), 0.0f, 1.0f))))));
 						if (norm(steering))
 						{
 							vf2 steering_direction = normalize(steering);
