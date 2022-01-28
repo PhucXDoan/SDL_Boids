@@ -1,7 +1,8 @@
 # SDL\_Boids
 
-An SDL implementation of a simulation of boids. The project depends on SDL2. The development libraries can
-be downloaded from their site. Extract and place `include` and `lib` into the `W:` directory of the project
-so the build can link against the SDL libraries and header files and so the program can also find the `.dll`.
-Initalization of the shell can be done through `W:\misc\shell.bat` and building with `W:\misc\build.bat` using
-`cl`.
+An SDL implementation of boids.
+
+To build, the development library of SDL2 is required in order to perform linking.
+A folder named `SDL2` at the root directory of the project is needed.
+The folder should contain the `include` and `lib` folders from the extracted development libary.
+Use `W:\misc\shell.bat` to initialize the development environment and `W:\misc\build.bat` to build with `msvc`.
