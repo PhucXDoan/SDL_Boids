@@ -113,7 +113,7 @@ inline f32 modulo_f32(f32 n, f32 m)
 inline f32 very_strong_curve(f32 x)
 {
 	f32 y = CLAMP(x, -1.0f, 1.0f);
-	return y * y * y * y * y * y * y * y * y;
+	return y * y * y * y * y * y * y * y * y * y * y * y * y * y * y;
 }
 
 inline f32 dot(vf2 u, vf2 v)
@@ -402,11 +402,19 @@ int main(int, char**)
 					// Spatial Partition Display.
 					//
 
-					SDL_SetRenderDrawColor(window_renderer, 128, 32, 32, 255);
 					FOR_ELEMS(chunk_node, map.chunk_node_hash_table)
 					{
 						if (*chunk_node)
 						{
+							f32 redness = 0.0f;
+							for (IndexBufferNode* node = (*chunk_node)->index_buffer_node; node; node = node->next_node)
+							{
+								redness += node->index_count;
+							}
+							redness *= 2.0f;
+
+							SDL_SetRenderDrawColor(window_renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
+
 							SDL_Rect rect = { (*chunk_node)->x * PIXELS_PER_METER, WINDOW_HEIGHT - 1 - ((*chunk_node)->y + 1) * PIXELS_PER_METER, PIXELS_PER_METER, PIXELS_PER_METER };
 							SDL_RenderFillRect(window_renderer, &rect);
 						}
@@ -416,7 +424,7 @@ int main(int, char**)
 					// Grid.
 					//
 
-					SDL_SetRenderDrawColor(window_renderer, 255, 255, 255, 255);
+					SDL_SetRenderDrawColor(window_renderer, 64, 64, 64, 255);
 					FOR_RANGE(i, 0, WINDOW_WIDTH / PIXELS_PER_METER + 1)
 					{
 						i32 x = i * PIXELS_PER_METER;
@@ -474,7 +482,7 @@ int main(int, char**)
 											if (other_old_boid != old_boid && MINIMUM_RADIUS < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
 											{
 												++neighboring_boid_count;
-												average_neighboring_boid_repulsion    -= to_other * (1.0f / distance_to_other - 1.0f / BOID_NEIGHBORHOOD_RADIUS);
+												average_neighboring_boid_repulsion    -= to_other * (BOID_NEIGHBORHOOD_RADIUS / distance_to_other);
 												average_neighboring_boid_movement     += other_old_boid->direction;
 												average_neighboring_boid_rel_position += to_other;
 											}
@@ -494,10 +502,10 @@ int main(int, char**)
 						}
 
 						constexpr f32 SEPARATION_WEIGHT = 16.0f;
-						constexpr f32 ALIGNMENT_WEIGHT  =  1.0f;
-						constexpr f32 COHESION_WEIGHT   =  1.0f;
-						constexpr f32 BORDER_WEIGHT     = 16.0f;
-						constexpr f32 DRAG_WEIGHT       =  4.0f;
+						constexpr f32 ALIGNMENT_WEIGHT  =  8.0f;
+						constexpr f32 COHESION_WEIGHT   =  8.0f;
+						constexpr f32 BORDER_WEIGHT     = 64.0f;
+						constexpr f32 DRAG_WEIGHT       = 16.0f;
 
 						vf2 desired_movement =
 							average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
