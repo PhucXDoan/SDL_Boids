@@ -21,7 +21,7 @@ flag_struct (ArrowKey, u32)
 
 struct Boid
 {
-	f32 angle;
+	vf2 direction;
 	vf2 position;
 };
 
@@ -87,6 +87,11 @@ inline constexpr i32 ceil_f32(f32 f)
 	return -floor_f32(-f);
 }
 
+inline vf2 complex_mul(vf2 u, vf2 v)
+{
+	return { u.x * v.x - u.y * v.y, u.x * v.y + u.y * v.x };
+}
+
 inline f32 modulo_f32(f32 n, f32 m)
 {
 	f32 result = n;
@@ -104,7 +109,12 @@ inline f32 modulo_f32(f32 n, f32 m)
 	return result;
 }
 
-inline f32 square(f32 x) { return x * x; }
+// @TODO@ Hacky! lol.
+inline f32 very_strong_curve(f32 x)
+{
+	f32 y = CLAMP(x, -1.0f, 1.0f);
+	return y * y * y * y * y * y * y * y * y;
+}
 
 inline f32 dot(vf2 u, vf2 v)
 {
@@ -293,7 +303,7 @@ int main(int, char**)
 						{   5.0f,   0.0f }
 					};
 				constexpr i32 BOID_AMOUNT   = 2048;
-				constexpr f32 BOID_VELOCITY = 1.5f;
+				constexpr f32 BOID_VELOCITY = 1.0f;
 
 				// @TODO@ Perhaps malloc these.
 				IndexBufferNode TEMP_available_index_buffer_nodes[256];
@@ -324,8 +334,9 @@ int main(int, char**)
 
 				FOR_ELEMS(new_boid, *new_boids)
 				{
-					new_boid->angle    = modulo_f32(static_cast<f32>(new_boid_index), TAU);
-					new_boid->position = { new_boid_index % 40 / 3.0f, new_boid_index / 40 / 3.0f };
+					f32 angle = modulo_f32(static_cast<f32>(new_boid_index), TAU);
+					new_boid->direction = { cos_f32(angle), sin_f32(angle) };
+					new_boid->position  = { new_boid_index % 64 / 5.0f, new_boid_index / 64 / 5.0f };
 
 					push_index_into_map(&map, static_cast<i32>(new_boid->position.x), static_cast<i32>(new_boid->position.y), new_boid_index);
 				}
@@ -427,17 +438,16 @@ int main(int, char**)
 					FOR_ELEMS(new_boid, *new_boids)
 					{
 						Boid* old_boid      = &(*old_boids)[new_boid_index];
-						vf2   old_direction = { cos_f32(old_boid->angle), sin_f32(old_boid->angle) };
 
-						vf2 average_neighboring_boid_repulsion        = { 0.0f, 0.0f };
-						vf2 average_neighboring_boid_facing_direction = { 0.0f, 0.0f };
-						vf2 cohesion_direction                        = { 0.0f, 0.0f };
-						i32 neighboring_boid_count                    = 0;
+						vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
+						vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
+						vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
+						i32 neighboring_boid_count                = 0;
 
 						constexpr f32 BOID_NEIGHBORHOOD_RADIUS = 1.0f;
-						FOR_RANGE(dx, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
+						FOR_RANGE(dy, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
 						{
-							FOR_RANGE(dy, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
+							FOR_RANGE(dx, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
 							{
 								ChunkNode** chunk_node = find_chunk_node(&map, static_cast<i32>(old_boid->position.x) + dx, static_cast<i32>(old_boid->position.y) + dy);
 
@@ -458,12 +468,15 @@ int main(int, char**)
 											vf2 to_other          = other_old_boid->position - old_boid->position;
 											f32 distance_to_other = norm(to_other);
 
-											if (other_old_boid != old_boid && 0.0f < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
+											constexpr f32 MINIMUM_RADIUS = 0.01f;
+
+											// @TODO@ Remove epsilon?
+											if (other_old_boid != old_boid && MINIMUM_RADIUS < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
 											{
 												++neighboring_boid_count;
-												average_neighboring_boid_repulsion        -= normalize(to_other) * (1.0f - distance_to_other / BOID_NEIGHBORHOOD_RADIUS);
-												average_neighboring_boid_facing_direction += { cos_f32(other_old_boid->angle), sin_f32(other_old_boid->angle) };
-												cohesion_direction                        += other_old_boid->position;
+												average_neighboring_boid_repulsion    -= to_other * (1.0f / distance_to_other - 1.0f / BOID_NEIGHBORHOOD_RADIUS);
+												average_neighboring_boid_movement     += other_old_boid->direction;
+												average_neighboring_boid_rel_position += to_other;
 											}
 										}
 
@@ -473,56 +486,40 @@ int main(int, char**)
 							}
 						}
 
-						f32 delta_angle = 0.0f;
-
 						if (neighboring_boid_count)
 						{
-							average_neighboring_boid_repulsion        /= static_cast<f32>(neighboring_boid_count);
-							average_neighboring_boid_facing_direction /= static_cast<f32>(neighboring_boid_count);
-							cohesion_direction                        /= static_cast<f32>(neighboring_boid_count);
-							cohesion_direction                        -= old_boid->position;
-
-							if (+average_neighboring_boid_repulsion)
-							{
-								average_neighboring_boid_repulsion = normalize(average_neighboring_boid_repulsion);
-							}
-
-							if (+average_neighboring_boid_facing_direction)
-							{
-								average_neighboring_boid_facing_direction = normalize(average_neighboring_boid_facing_direction);
-							}
-
-							if (+cohesion_direction)
-							{
-								cohesion_direction = normalize(cohesion_direction);
-							}
+							average_neighboring_boid_repulsion    /= static_cast<f32>(neighboring_boid_count);
+							average_neighboring_boid_movement     /= static_cast<f32>(neighboring_boid_count);
+							average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
 						}
 
-						constexpr f32 COHESION_WEIGHT   = 1.0f;
-						constexpr f32 ALIGNMENT_WEIGHT  = 2.5f;
-						constexpr f32 SEPARATION_WEIGHT = 3.5f;
-						constexpr f32 BORDER_FORCE      = 15.0f;
+						constexpr f32 SEPARATION_WEIGHT = 16.0f;
+						constexpr f32 ALIGNMENT_WEIGHT  =  1.0f;
+						constexpr f32 COHESION_WEIGHT   =  1.0f;
+						constexpr f32 BORDER_WEIGHT     = 16.0f;
+						constexpr f32 DRAG_WEIGHT       =  4.0f;
 
-						vf2 steering = { 0.0f, 0.0f };
-						steering += cohesion_direction * COHESION_WEIGHT + average_neighboring_boid_facing_direction * ALIGNMENT_WEIGHT + average_neighboring_boid_repulsion * SEPARATION_WEIGHT;
-						steering += vf2 { -1.0f,  0.0f } * BORDER_FORCE * square(square(square(square(square(CLAMP(       old_boid->position.x / (static_cast<f32>(WINDOW_WIDTH ) / PIXELS_PER_METER), 0.0f, 1.0f))))));
-						steering += vf2 {  1.0f,  0.0f } * BORDER_FORCE * square(square(square(square(square(CLAMP(1.0f - old_boid->position.x / (static_cast<f32>(WINDOW_WIDTH ) / PIXELS_PER_METER), 0.0f, 1.0f))))));
-						steering += vf2 {  0.0f, -1.0f } * BORDER_FORCE * square(square(square(square(square(CLAMP(       old_boid->position.y / (static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER), 0.0f, 1.0f))))));
-						steering += vf2 {  0.0f,  1.0f } * BORDER_FORCE * square(square(square(square(square(CLAMP(1.0f - old_boid->position.y / (static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER), 0.0f, 1.0f))))));
-						if (norm(steering))
+						vf2 desired_movement =
+							average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
+							average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
+							average_neighboring_boid_rel_position * COHESION_WEIGHT   +
+							vf2
+							{
+								-very_strong_curve(old_boid->position.x * PIXELS_PER_METER / static_cast<f32>(WINDOW_WIDTH ) * 2.0f - 1.0f),
+								-very_strong_curve(old_boid->position.y * PIXELS_PER_METER / static_cast<f32>(WINDOW_HEIGHT) * 2.0f - 1.0f)
+							} * BORDER_WEIGHT +
+							old_boid->direction * DRAG_WEIGHT;
+
+						f32 desired_movement_distance = norm(desired_movement);
+
+						constexpr f32 MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.05f;
+
+						if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
 						{
-							vf2 steering_direction = normalize(steering);
-
-							f32 dot_prod = dot(steering_direction, old_direction);
-
-							if (-1.0f <= dot_prod && dot_prod <= 1.0f) // @TODO@ Somehow avoid this floating point error?
-							{
-								delta_angle = arccos_f32(dot_prod) * (dot(steering_direction, { -old_direction.y, old_direction.x }) < 0.0f ? -1.0f : 1.0f) * norm(steering);
-							}
+							new_boid->direction = desired_movement / desired_movement_distance;
 						}
 
-						new_boid->angle    = modulo_f32(old_boid->angle + delta_angle * 0.5f * delta_seconds, TAU);
-						new_boid->position = old_boid->position + BOID_VELOCITY * old_direction * delta_seconds;
+						new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * delta_seconds;
 
 						if (static_cast<i32>(new_boid->position.x) != static_cast<i32>(old_boid->position.x) || static_cast<i32>(new_boid->position.y) != static_cast<i32>(old_boid->position.y))
 						{
@@ -534,33 +531,16 @@ int main(int, char**)
 						// Boid Rendering.
 						//
 
-						vf2 direction = { cos_f32(new_boid->angle), sin_f32(new_boid->angle) };
-						vf2 offset    = new_boid->position * static_cast<f32>(PIXELS_PER_METER);
+						vf2 offset = new_boid->position * static_cast<f32>(PIXELS_PER_METER);
 
 						SDL_Point pixel_points[ARRAY_CAPACITY(BOID_VERTICES)];
 						FOR_ELEMS(pixel_point, pixel_points)
 						{
-							*pixel_point =
-								{
-									static_cast<i32>(BOID_VERTICES[pixel_point_index].x * direction.x - BOID_VERTICES[pixel_point_index].y * direction.y + offset.x),
-									WINDOW_HEIGHT - 1 - static_cast<i32>(BOID_VERTICES[pixel_point_index].x * direction.y + BOID_VERTICES[pixel_point_index].y * direction.x + offset.y)
-								};
+							vf2 point = complex_mul(BOID_VERTICES[pixel_point_index], new_boid->direction) + offset;
+							*pixel_point = { static_cast<i32>(point.x), WINDOW_HEIGHT - 1 - static_cast<i32>(point.y) };
 						}
 
 						SDL_RenderDrawLines(window_renderer, pixel_points, ARRAY_CAPACITY(pixel_points));
-
-						#if 0
-						SDL_RenderDrawLine
-						(
-							window_renderer,
-							static_cast<i32>(offset.x),
-							WINDOW_HEIGHT - 1 - static_cast<i32>(offset.y),
-							static_cast<i32>(offset.x) + static_cast<i32>(steering_direction.x * 50.0f),
-							WINDOW_HEIGHT - 1 - (static_cast<i32>(offset.y) + static_cast<i32>(steering_direction.y * 50.0f))
-						);
-
-						DrawCircle(window_renderer, static_cast<i32>(offset.x), WINDOW_HEIGHT - 1 - static_cast<i32>(offset.y), static_cast<i32>(BOID_NEIGHBOR_RADIUS * PIXELS_PER_METER));
-						#endif
 					}
 
 					SDL_RenderPresent(window_renderer);
