@@ -8,9 +8,13 @@
 #define gibibytes_of(N) (1024LL * mebibytes_of(N))
 #define tebibytes_of(N) (1024LL * gibibytes_of(N))
 
-constexpr memsize MEMORY_CAPACITY = mebibytes_of(1);
+constexpr memsize MEMORY_CAPACITY            = mebibytes_of(1);
+constexpr i32     WINDOW_WIDTH               = 1280;
+constexpr i32     WINDOW_HEIGHT              = 720;
+constexpr strlit  PROGRAM_DLL_FILE_PATH      = "W:/build/SDL_Boids.dll";
+constexpr strlit  PROGRAM_DLL_TEMP_FILE_PATH = "W:/build/SDL_Boids.dll.temp";
 
-struct PLATFORM_Program
+struct Program
 {
 	bool32        is_running;
 	bool32        is_initialized;
@@ -18,4 +22,13 @@ struct PLATFORM_Program
 	SDL_Renderer* renderer;
 	byteptr       memory;
 	memsize       memory_capacity;
+};
+
+#define PROTOTYPE_UPDATE(NAME) void NAME(Program* program)
+typedef PROTOTYPE_UPDATE(PrototypeUpdate);
+
+struct HotloadingData
+{
+	byteptr          dll;
+	PrototypeUpdate* update;
 };

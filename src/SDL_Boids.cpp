@@ -224,7 +224,7 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 	}
 }
 
-void update(PLATFORM_Program* program)
+extern "C" PROTOTYPE_UPDATE(update)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 

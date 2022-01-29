@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <SDL.h>
 #include "unified.h"
+#include "SDL_Boids_platform.h"
 
 // @TODO@ Render boids using textures?
 // @TODO@ Should resizing of window be allowed?
@@ -13,8 +14,6 @@
 // @TODO@ Non-Euclidan geometry.
 // @TODO@ Target boids: 4096.
 
-constexpr i32 WINDOW_WIDTH                      = 1280;
-constexpr i32 WINDOW_HEIGHT                     = 720;
 constexpr i32 PIXELS_PER_METER                  = 100;
 constexpr f32 BOID_VELOCITY                     = 1.0f;
 constexpr i32 BOID_AMOUNT                       = 2048;
