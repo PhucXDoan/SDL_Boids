@@ -1,60 +1,4 @@
-#include <stdio.h>
-#include <SDL.h>
-
-// @TODO@ Render boids using textures?
-// @TODO@ Should resizing of window be allowed?
-// @TODO@ Multithreading?
-// @TODO@ Movable camera.
-// @TODO@ Zooming.
-// @TODO@ Hotloading.
-// @TODO@ GUI.
-// @TODO@ Non-Euclidan geometry.
-// @TODO@ Target boids: 4096.
-
-#define DEBUG 1
-#include "unified.h"
-
-constexpr memsize MEMORY_BYTES     = 1024 * 1024;
-constexpr i32     WINDOW_WIDTH     = 1280;
-constexpr i32     WINDOW_HEIGHT    = 720;
-constexpr i32     PIXELS_PER_METER = 100;
-constexpr f32     BOID_VELOCITY    = 1.0f;
-constexpr vf2     BOID_VERTICES[]  =
-	{
-		{   5.0f,   0.0f },
-		{  -5.0f,   5.0f },
-		{  -1.0f,   0.0f },
-		{  -5.0f,  -5.0f },
-		{   5.0f,   0.0f }
-	};
-
-struct Boid
-{
-	vf2 direction;
-	vf2 position;
-};
-
-struct IndexBufferNode
-{
-	i32              index_buffer[32];
-	i32              index_count;
-	IndexBufferNode* next_node;
-};
-
-struct ChunkNode
-{
-	i32              x;
-	i32              y;
-	IndexBufferNode* index_buffer_node;
-	ChunkNode*       next_node;
-};
-
-struct Map
-{
-	IndexBufferNode* available_index_buffer_node;
-	ChunkNode*       available_chunk_node;
-	ChunkNode*       chunk_node_hash_table[256];
-};
+#include "SDL_Boids.h"
 
 // @TODO@ Implement the math functions.
 inline f32 cos_f32(f32 rad)
@@ -280,38 +224,26 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 	}
 }
 
-struct State
+void update(PLATFORM_Program* program)
 {
-	SDL_Renderer* renderer;
-	f32           delta_seconds;
-	memarena      memory_arena;
-	bool32        is_initialized;
-	bool32        is_running;
+	State* state = reinterpret_cast<State*>(program->memory);
 
-	Map   map;
-	Boid* old_boids;
-	Boid* new_boids;
-};
-
-void update(State* state)
-{
-	constexpr i32 BOID_AMOUNT = 2048;
-
-	if (!state->is_initialized)
+	if (!program->is_initialized)
 	{
-		state->is_initialized = true;
+		program->is_initialized = true;
 
-		constexpr i32 AVAILABLE_INDEX_BUFFER_NODE_COUNT = 256;
-		constexpr i32 AVAILABLE_CHUNK_NODE_COUNT        = 256;
+		state->general_arena.base = program->memory          + sizeof(State);
+		state->general_arena.size = program->memory_capacity - sizeof(State);
+		state->general_arena.used = 0;
 
-		state->map.available_index_buffer_node = PUSH(&state->memory_arena, IndexBufferNode, AVAILABLE_INDEX_BUFFER_NODE_COUNT);
+		state->map.available_index_buffer_node = PUSH(&state->general_arena, IndexBufferNode, AVAILABLE_INDEX_BUFFER_NODE_COUNT);
 		FOR_RANGE(i, 0, AVAILABLE_INDEX_BUFFER_NODE_COUNT - 1)
 		{
 			state->map.available_index_buffer_node[i].next_node = &state->map.available_index_buffer_node[i + 1];
 		}
 		state->map.available_index_buffer_node[AVAILABLE_INDEX_BUFFER_NODE_COUNT - 1].next_node = 0;
 
-		state->map.available_chunk_node = PUSH(&state->memory_arena, ChunkNode, AVAILABLE_CHUNK_NODE_COUNT);
+		state->map.available_chunk_node = PUSH(&state->general_arena, ChunkNode, AVAILABLE_CHUNK_NODE_COUNT);
 		FOR_RANGE(i, 0, AVAILABLE_CHUNK_NODE_COUNT - 1)
 		{
 			state->map.available_chunk_node[i].next_node = &state->map.available_chunk_node[i + 1];
@@ -323,7 +255,7 @@ void update(State* state)
 			*chunk_node = 0;
 		}
 
-		state->old_boids = PUSH(&state->memory_arena, Boid, BOID_AMOUNT);
+		state->old_boids = PUSH(&state->general_arena, Boid, BOID_AMOUNT);
 		FOR_ELEMS(old_boid, state->old_boids, BOID_AMOUNT)
 		{
 			f32 angle = modulo_f32(static_cast<f32>(old_boid_index), TAU);
@@ -333,7 +265,7 @@ void update(State* state)
 			push_index_into_map(&state->map, static_cast<i32>(old_boid->position.x), static_cast<i32>(old_boid->position.y), old_boid_index);
 		}
 
-		state->new_boids = PUSH(&state->memory_arena, Boid, BOID_AMOUNT);
+		state->new_boids = PUSH(&state->general_arena, Boid, BOID_AMOUNT);
 	}
 
 	for (SDL_Event event; SDL_PollEvent(&event);)
@@ -342,13 +274,13 @@ void update(State* state)
 		{
 			case SDL_QUIT:
 			{
-				state->is_running = false;
+				program->is_running = false;
 			} break;
 		}
 	}
 
-	SDL_SetRenderDrawColor(state->renderer, 0, 0, 0, 255);
-	SDL_RenderClear(state->renderer);
+	SDL_SetRenderDrawColor(program->renderer, 0, 0, 0, 255);
+	SDL_RenderClear(program->renderer);
 
 	//
 	// Spatial Partition Display.
@@ -365,10 +297,10 @@ void update(State* state)
 			}
 			redness *= 2.0f;
 
-			SDL_SetRenderDrawColor(state->renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
+			SDL_SetRenderDrawColor(program->renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
 
 			SDL_Rect rect = { (*chunk_node)->x * PIXELS_PER_METER, WINDOW_HEIGHT - 1 - ((*chunk_node)->y + 1) * PIXELS_PER_METER, PIXELS_PER_METER, PIXELS_PER_METER };
-			SDL_RenderFillRect(state->renderer, &rect);
+			SDL_RenderFillRect(program->renderer, &rect);
 		}
 	}
 
@@ -376,24 +308,24 @@ void update(State* state)
 	// Grid.
 	//
 
-	SDL_SetRenderDrawColor(state->renderer, 64, 64, 64, 255);
+	SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
 	FOR_RANGE(i, 0, WINDOW_WIDTH / PIXELS_PER_METER + 1)
 	{
 		i32 x = i * PIXELS_PER_METER;
-		SDL_RenderDrawLine(state->renderer, x, 0, x, WINDOW_HEIGHT);
+		SDL_RenderDrawLine(program->renderer, x, 0, x, WINDOW_HEIGHT);
 	}
 
 	FOR_RANGE(i, 0, WINDOW_HEIGHT / PIXELS_PER_METER + 1)
 	{
 		i32 y = WINDOW_HEIGHT - 1 - i * PIXELS_PER_METER;
-		SDL_RenderDrawLine(state->renderer, 0, y, WINDOW_WIDTH, y);
+		SDL_RenderDrawLine(program->renderer, 0, y, WINDOW_WIDTH, y);
 	}
 
 	//
 	// Boids.
 	//
 
-	SDL_SetRenderDrawColor(state->renderer, 222, 173, 38, 255);
+	SDL_SetRenderDrawColor(program->renderer, 222, 173, 38, 255);
 
 	FOR_ELEMS(new_boid, state->new_boids, BOID_AMOUNT)
 	{
@@ -404,7 +336,6 @@ void update(State* state)
 		vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
 		i32 neighboring_boid_count                = 0;
 
-		constexpr f32 BOID_NEIGHBORHOOD_RADIUS = 1.0f;
 		FOR_RANGE(dy, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
 		{
 			FOR_RANGE(dx, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
@@ -427,8 +358,6 @@ void update(State* state)
 
 							vf2 to_other          = other_old_boid->position - old_boid->position;
 							f32 distance_to_other = norm(to_other);
-
-							constexpr f32 MINIMUM_RADIUS = 0.01f;
 
 							// @TODO@ Remove epsilon?
 							if (other_old_boid != old_boid && MINIMUM_RADIUS < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
@@ -453,12 +382,6 @@ void update(State* state)
 			average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
 		}
 
-		constexpr f32 SEPARATION_WEIGHT = 16.0f;
-		constexpr f32 ALIGNMENT_WEIGHT  =  8.0f;
-		constexpr f32 COHESION_WEIGHT   =  8.0f;
-		constexpr f32 BORDER_WEIGHT     = 64.0f;
-		constexpr f32 DRAG_WEIGHT       = 16.0f;
-
 		vf2 desired_movement =
 			average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
 			average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
@@ -472,14 +395,12 @@ void update(State* state)
 
 		f32 desired_movement_distance = norm(desired_movement);
 
-		constexpr f32 MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.05f;
-
 		if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
 		{
 			new_boid->direction = desired_movement / desired_movement_distance;
 		}
 
-		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * state->delta_seconds;
+		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * program->delta_seconds;
 
 		if (static_cast<i32>(new_boid->position.x) != static_cast<i32>(old_boid->position.x) || static_cast<i32>(new_boid->position.y) != static_cast<i32>(old_boid->position.y))
 		{
@@ -500,73 +421,10 @@ void update(State* state)
 			*pixel_point = { static_cast<i32>(point.x), WINDOW_HEIGHT - 1 - static_cast<i32>(point.y) };
 		}
 
-		SDL_RenderDrawLines(state->renderer, pixel_points, ARRAY_CAPACITY(pixel_points));
+		SDL_RenderDrawLines(program->renderer, pixel_points, ARRAY_CAPACITY(pixel_points));
 	}
 
-	SDL_RenderPresent(state->renderer);
+	SDL_RenderPresent(program->renderer);
 
 	SWAP(state->new_boids, state->old_boids);
-}
-
-int main(int, char**)
-{
-	if (SDL_Init(SDL_INIT_VIDEO))
-	{
-		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-		ASSERT(!"SDL could not initialize video.");
-	}
-	else
-	{
-
-		SDL_Window* window = SDL_CreateWindow("SDL_Boids", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
-
-		if (window)
-		{
-			SDL_Renderer* window_renderer = SDL_CreateRenderer(window, -1, 0);
-
-			if (window_renderer)
-			{
-
-				State state;
-				state.renderer          = window_renderer;
-				state.delta_seconds     = 0;
-				state.memory_arena.used = 0;
-				state.memory_arena.base = reinterpret_cast<byteptr>(malloc(MEMORY_BYTES));
-				state.memory_arena.size = MEMORY_BYTES;
-				state.is_initialized    = false;
-				state.is_running        = true;
-
-				u64 performance_count = SDL_GetPerformanceCounter();
-
-				while (state.is_running)
-				{
-					u64 new_performance_count = SDL_GetPerformanceCounter();
-					state.delta_seconds       = static_cast<f32>(new_performance_count - performance_count) / SDL_GetPerformanceFrequency();
-					performance_count         = new_performance_count;
-
-					update(&state);
-				}
-
-				free(state.memory_arena.base);
-			}
-			else
-			{
-				fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-				ASSERT(!"SDL could not create a renderer for the window.");
-			}
-
-			SDL_DestroyRenderer(window_renderer);
-		}
-		else
-		{
-			fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-			ASSERT(!"SDL could not create window.");
-		}
-
-		SDL_DestroyWindow(window);
-	}
-
-	SDL_Quit();
-
-	return 0;
 }

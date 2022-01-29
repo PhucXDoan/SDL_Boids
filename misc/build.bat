@@ -2,7 +2,7 @@
 
 IF NOT EXIST W:\build\ mkdir W:\build\
 pushd W:\build\
-	cl -nologo -std:c++17 -MTd -GR- -EHsc -EHa- -Od -Oi -W4 -Z7 -wd4100 -wd4201 W:\src\SDL_Boids.cpp -I W:\SDL2\include\ /link -opt:ref -incremental:no -subsystem:windows W:\SDL2\lib\x64\SDL2.lib W:\SDL2\lib\x64\SDL2main.lib shell32.lib
+	cl -DDEBUG=1 -nologo -std:c++17 -MTd -GR- -EHsc -EHa- -Od -Oi -W4 -Z7 -wd4100 -wd4201 W:\src\SDL_Boids_platform.cpp -FeSDL_Boids.exe -I W:\SDL2\include\ /link -opt:ref -incremental:no -subsystem:windows W:\SDL2\lib\x64\SDL2.lib W:\SDL2\lib\x64\SDL2main.lib shell32.lib
 	REM `-nologo`            "Suppresses the display of the copyright banner when the compiler starts up and display of informational messages during compiling."
 	REM `-std:c++17`         "Enable supported C and C++ language features from the specified version of the C or C++ language standard."
 	REM `-MTd`               "Defines _DEBUG and _MT. This option also causes the compiler to place the library name LIBCMTD.lib into the .obj file so that the linker will use LIBCMTD.lib to resolve external symbols."
