@@ -3,21 +3,30 @@
 
 // @TODO@ Render boids using textures?
 // @TODO@ Should resizing of window be allowed?
-// @TODO@ Make grid centered?
-// @TODO@ Spatial partition.
+// @TODO@ Multithreading?
+// @TODO@ Movable camera.
+// @TODO@ Zooming.
+// @TODO@ Hotloading.
+// @TODO@ GUI.
+// @TODO@ Non-Euclidan geometry.
+// @TODO@ Target boids: 4096.
 
 #define DEBUG 1
 #include "unified.h"
 
-#if 0
-flag_struct (ArrowKey, u32)
-{
-	left  = 1 << 0,
-	right = 1 << 1,
-	down  = 1 << 2,
-	up    = 1 << 3
-};
-#endif
+constexpr memsize MEMORY_BYTES     = 1024 * 1024;
+constexpr i32     WINDOW_WIDTH     = 1280;
+constexpr i32     WINDOW_HEIGHT    = 720;
+constexpr i32     PIXELS_PER_METER = 100;
+constexpr f32     BOID_VELOCITY    = 1.0f;
+constexpr vf2     BOID_VERTICES[]  =
+	{
+		{   5.0f,   0.0f },
+		{  -5.0f,   5.0f },
+		{  -1.0f,   0.0f },
+		{  -5.0f,  -5.0f },
+		{   5.0f,   0.0f }
+	};
 
 struct Boid
 {
@@ -209,8 +218,6 @@ void push_index_into_map(Map* map, i32 x, i32 y, i32 index)
 		*chunk_node               = map->available_chunk_node;
 		map->available_chunk_node = map->available_chunk_node->next_node;
 
-		ASSERT(!(*chunk_node)->index_buffer_node);
-
 		(*chunk_node)->x                                  = x;
 		(*chunk_node)->y                                  = y;
 		(*chunk_node)->index_buffer_node                  = pop_from_available_index_buffer_node(map);
@@ -273,6 +280,234 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 	}
 }
 
+struct State
+{
+	SDL_Renderer* renderer;
+	f32           delta_seconds;
+	memarena      memory_arena;
+	bool32        is_initialized;
+	bool32        is_running;
+
+	Map   map;
+	Boid* old_boids;
+	Boid* new_boids;
+};
+
+void update(State* state)
+{
+	constexpr i32 BOID_AMOUNT = 2048;
+
+	if (!state->is_initialized)
+	{
+		state->is_initialized = true;
+
+		constexpr i32 AVAILABLE_INDEX_BUFFER_NODE_COUNT = 256;
+		constexpr i32 AVAILABLE_CHUNK_NODE_COUNT        = 256;
+
+		state->map.available_index_buffer_node = PUSH(&state->memory_arena, IndexBufferNode, AVAILABLE_INDEX_BUFFER_NODE_COUNT);
+		FOR_RANGE(i, 0, AVAILABLE_INDEX_BUFFER_NODE_COUNT - 1)
+		{
+			state->map.available_index_buffer_node[i].next_node = &state->map.available_index_buffer_node[i + 1];
+		}
+		state->map.available_index_buffer_node[AVAILABLE_INDEX_BUFFER_NODE_COUNT - 1].next_node = 0;
+
+		state->map.available_chunk_node = PUSH(&state->memory_arena, ChunkNode, AVAILABLE_CHUNK_NODE_COUNT);
+		FOR_RANGE(i, 0, AVAILABLE_CHUNK_NODE_COUNT - 1)
+		{
+			state->map.available_chunk_node[i].next_node = &state->map.available_chunk_node[i + 1];
+		}
+		state->map.available_chunk_node[AVAILABLE_CHUNK_NODE_COUNT - 1].next_node = 0;
+
+		FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+		{
+			*chunk_node = 0;
+		}
+
+		state->old_boids = PUSH(&state->memory_arena, Boid, BOID_AMOUNT);
+		FOR_ELEMS(old_boid, state->old_boids, BOID_AMOUNT)
+		{
+			f32 angle = modulo_f32(static_cast<f32>(old_boid_index), TAU);
+			old_boid->direction = { cos_f32(angle), sin_f32(angle) };
+			old_boid->position  = { old_boid_index % 64 / 5.0f, old_boid_index / 64 / 5.0f };
+
+			push_index_into_map(&state->map, static_cast<i32>(old_boid->position.x), static_cast<i32>(old_boid->position.y), old_boid_index);
+		}
+
+		state->new_boids = PUSH(&state->memory_arena, Boid, BOID_AMOUNT);
+	}
+
+	for (SDL_Event event; SDL_PollEvent(&event);)
+	{
+		switch (event.type)
+		{
+			case SDL_QUIT:
+			{
+				state->is_running = false;
+			} break;
+		}
+	}
+
+	SDL_SetRenderDrawColor(state->renderer, 0, 0, 0, 255);
+	SDL_RenderClear(state->renderer);
+
+	//
+	// Spatial Partition Display.
+	//
+
+	FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+	{
+		if (*chunk_node)
+		{
+			f32 redness = 0.0f;
+			for (IndexBufferNode* node = (*chunk_node)->index_buffer_node; node; node = node->next_node)
+			{
+				redness += node->index_count;
+			}
+			redness *= 2.0f;
+
+			SDL_SetRenderDrawColor(state->renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
+
+			SDL_Rect rect = { (*chunk_node)->x * PIXELS_PER_METER, WINDOW_HEIGHT - 1 - ((*chunk_node)->y + 1) * PIXELS_PER_METER, PIXELS_PER_METER, PIXELS_PER_METER };
+			SDL_RenderFillRect(state->renderer, &rect);
+		}
+	}
+
+	//
+	// Grid.
+	//
+
+	SDL_SetRenderDrawColor(state->renderer, 64, 64, 64, 255);
+	FOR_RANGE(i, 0, WINDOW_WIDTH / PIXELS_PER_METER + 1)
+	{
+		i32 x = i * PIXELS_PER_METER;
+		SDL_RenderDrawLine(state->renderer, x, 0, x, WINDOW_HEIGHT);
+	}
+
+	FOR_RANGE(i, 0, WINDOW_HEIGHT / PIXELS_PER_METER + 1)
+	{
+		i32 y = WINDOW_HEIGHT - 1 - i * PIXELS_PER_METER;
+		SDL_RenderDrawLine(state->renderer, 0, y, WINDOW_WIDTH, y);
+	}
+
+	//
+	// Boids.
+	//
+
+	SDL_SetRenderDrawColor(state->renderer, 222, 173, 38, 255);
+
+	FOR_ELEMS(new_boid, state->new_boids, BOID_AMOUNT)
+	{
+		Boid* old_boid = &state->old_boids[new_boid_index];
+
+		vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
+		vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
+		vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
+		i32 neighboring_boid_count                = 0;
+
+		constexpr f32 BOID_NEIGHBORHOOD_RADIUS = 1.0f;
+		FOR_RANGE(dy, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
+		{
+			FOR_RANGE(dx, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
+			{
+				ChunkNode** chunk_node = find_chunk_node(&state->map, static_cast<i32>(old_boid->position.x) + dx, static_cast<i32>(old_boid->position.y) + dy);
+
+				ASSERT(chunk_node);
+
+				if (*chunk_node)
+				{
+					ASSERT((*chunk_node)->index_buffer_node);
+
+					IndexBufferNode* current_index_buffer_node = (*chunk_node)->index_buffer_node;
+
+					while (current_index_buffer_node)
+					{
+						FOR_ELEMS(other_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
+						{
+							Boid* other_old_boid = &state->old_boids[*other_index];
+
+							vf2 to_other          = other_old_boid->position - old_boid->position;
+							f32 distance_to_other = norm(to_other);
+
+							constexpr f32 MINIMUM_RADIUS = 0.01f;
+
+							// @TODO@ Remove epsilon?
+							if (other_old_boid != old_boid && MINIMUM_RADIUS < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
+							{
+								++neighboring_boid_count;
+								average_neighboring_boid_repulsion    -= to_other * (BOID_NEIGHBORHOOD_RADIUS / distance_to_other);
+								average_neighboring_boid_movement     += other_old_boid->direction;
+								average_neighboring_boid_rel_position += to_other;
+							}
+						}
+
+						current_index_buffer_node = current_index_buffer_node->next_node;
+					}
+				}
+			}
+		}
+
+		if (neighboring_boid_count)
+		{
+			average_neighboring_boid_repulsion    /= static_cast<f32>(neighboring_boid_count);
+			average_neighboring_boid_movement     /= static_cast<f32>(neighboring_boid_count);
+			average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
+		}
+
+		constexpr f32 SEPARATION_WEIGHT = 16.0f;
+		constexpr f32 ALIGNMENT_WEIGHT  =  8.0f;
+		constexpr f32 COHESION_WEIGHT   =  8.0f;
+		constexpr f32 BORDER_WEIGHT     = 64.0f;
+		constexpr f32 DRAG_WEIGHT       = 16.0f;
+
+		vf2 desired_movement =
+			average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
+			average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
+			average_neighboring_boid_rel_position * COHESION_WEIGHT   +
+			vf2
+			{
+				-very_strong_curve(old_boid->position.x * PIXELS_PER_METER / static_cast<f32>(WINDOW_WIDTH ) * 2.0f - 1.0f),
+				-very_strong_curve(old_boid->position.y * PIXELS_PER_METER / static_cast<f32>(WINDOW_HEIGHT) * 2.0f - 1.0f)
+			} * BORDER_WEIGHT +
+			old_boid->direction * DRAG_WEIGHT;
+
+		f32 desired_movement_distance = norm(desired_movement);
+
+		constexpr f32 MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.05f;
+
+		if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
+		{
+			new_boid->direction = desired_movement / desired_movement_distance;
+		}
+
+		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * state->delta_seconds;
+
+		if (static_cast<i32>(new_boid->position.x) != static_cast<i32>(old_boid->position.x) || static_cast<i32>(new_boid->position.y) != static_cast<i32>(old_boid->position.y))
+		{
+			remove_index_from_map(&state->map, static_cast<i32>(old_boid->position.x), static_cast<i32>(old_boid->position.y), new_boid_index);
+			push_index_into_map  (&state->map, static_cast<i32>(new_boid->position.x), static_cast<i32>(new_boid->position.y), new_boid_index);
+		}
+
+		//
+		// Boid Rendering.
+		//
+
+		vf2 offset = new_boid->position * static_cast<f32>(PIXELS_PER_METER);
+
+		SDL_Point pixel_points[ARRAY_CAPACITY(BOID_VERTICES)];
+		FOR_ELEMS(pixel_point, pixel_points)
+		{
+			vf2 point = complex_mul(BOID_VERTICES[pixel_point_index], new_boid->direction) + offset;
+			*pixel_point = { static_cast<i32>(point.x), WINDOW_HEIGHT - 1 - static_cast<i32>(point.y) };
+		}
+
+		SDL_RenderDrawLines(state->renderer, pixel_points, ARRAY_CAPACITY(pixel_points));
+	}
+
+	SDL_RenderPresent(state->renderer);
+
+	SWAP(state->new_boids, state->old_boids);
+}
+
 int main(int, char**)
 {
 	if (SDL_Init(SDL_INIT_VIDEO))
@@ -282,8 +517,6 @@ int main(int, char**)
 	}
 	else
 	{
-		constexpr i32 WINDOW_WIDTH  = 1280;
-		constexpr i32 WINDOW_HEIGHT = 720;
 
 		SDL_Window* window = SDL_CreateWindow("SDL_Boids", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
 
@@ -293,266 +526,28 @@ int main(int, char**)
 
 			if (window_renderer)
 			{
-				constexpr i32 PIXELS_PER_METER = 100;
-				constexpr vf2 BOID_VERTICES[] =
-					{
-						{   5.0f,   0.0f },
-						{  -5.0f,   5.0f },
-						{  -1.0f,   0.0f },
-						{  -5.0f,  -5.0f },
-						{   5.0f,   0.0f }
-					};
-				constexpr i32 BOID_AMOUNT   = 2048;
-				constexpr f32 BOID_VELOCITY = 1.0f;
 
-				// @TODO@ Perhaps malloc these.
-				IndexBufferNode TEMP_available_index_buffer_nodes[256];
-				FOR_RANGE(i, 0, ARRAY_CAPACITY(TEMP_available_index_buffer_nodes) - 1)
-				{
-					TEMP_available_index_buffer_nodes[i].next_node = &TEMP_available_index_buffer_nodes[i + 1];
-				}
-				TEMP_available_index_buffer_nodes[ARRAY_CAPACITY(TEMP_available_index_buffer_nodes) - 1].next_node = 0;
+				State state;
+				state.renderer          = window_renderer;
+				state.delta_seconds     = 0;
+				state.memory_arena.used = 0;
+				state.memory_arena.base = reinterpret_cast<byteptr>(malloc(MEMORY_BYTES));
+				state.memory_arena.size = MEMORY_BYTES;
+				state.is_initialized    = false;
+				state.is_running        = true;
 
-				ChunkNode TEMP_available_chunk_nodes[ARRAY_CAPACITY(Map, chunk_node_hash_table)];
-				FOR_RANGE(i, 0, ARRAY_CAPACITY(TEMP_available_chunk_nodes) - 1)
-				{
-					TEMP_available_chunk_nodes[i].next_node = &TEMP_available_chunk_nodes[i + 1];
-				}
-				TEMP_available_chunk_nodes[ARRAY_CAPACITY(TEMP_available_chunk_nodes) - 1].next_node = 0;
+				u64 performance_count = SDL_GetPerformanceCounter();
 
-				Map map;
-				map.available_index_buffer_node = &TEMP_available_index_buffer_nodes[0];
-				map.available_chunk_node        = &TEMP_available_chunk_nodes[0];
-				FOR_ELEMS(chunk_node, map.chunk_node_hash_table)
+				while (state.is_running)
 				{
-					*chunk_node = 0;
+					u64 new_performance_count = SDL_GetPerformanceCounter();
+					state.delta_seconds       = static_cast<f32>(new_performance_count - performance_count) / SDL_GetPerformanceFrequency();
+					performance_count         = new_performance_count;
+
+					update(&state);
 				}
 
-				Boid boid_swap_arrays[2][BOID_AMOUNT];
-				Boid (*new_boids)[BOID_AMOUNT] = &boid_swap_arrays[0];
-				Boid (*old_boids)[BOID_AMOUNT] = &boid_swap_arrays[1];
-
-				FOR_ELEMS(new_boid, *new_boids)
-				{
-					f32 angle = modulo_f32(static_cast<f32>(new_boid_index), TAU);
-					new_boid->direction = { cos_f32(angle), sin_f32(angle) };
-					new_boid->position  = { new_boid_index % 64 / 5.0f, new_boid_index / 64 / 5.0f };
-
-					push_index_into_map(&map, static_cast<i32>(new_boid->position.x), static_cast<i32>(new_boid->position.y), new_boid_index);
-				}
-
-				u64    performance_count = SDL_GetPerformanceCounter();
-				bool32 running = true;
-				while (running)
-				{
-					for (SDL_Event event; SDL_PollEvent(&event);)
-					{
-						switch (event.type)
-						{
-							case SDL_QUIT:
-							{
-								running = false;
-							} break;
-
-							#if 0
-							case SDL_KEYDOWN:
-							case SDL_KEYUP:
-							{
-								switch (event.key.keysym.sym)
-								{
-									case SDLK_LEFT:
-									case SDLK_RIGHT:
-									case SDLK_DOWN:
-									case SDLK_UP:
-									{
-										ArrowKey arrow_key =
-											event.key.keysym.sym == SDLK_LEFT  ? ArrowKey::left  :
-											event.key.keysym.sym == SDLK_RIGHT ? ArrowKey::right :
-											event.key.keysym.sym == SDLK_DOWN  ? ArrowKey::down  : ArrowKey::up;
-
-										if (event.key.state == SDL_PRESSED && !event.key.repeat)
-										{
-											pressed_arrow_keys |= arrow_key;
-										}
-										else if (event.key.state == SDL_RELEASED)
-										{
-											pressed_arrow_keys &= ~arrow_key;
-										}
-									} break;
-								}
-							} break;
-							#endif
-						}
-					}
-
-					f32 delta_seconds;
-					{
-						u64 new_performance_count = SDL_GetPerformanceCounter();
-						delta_seconds = static_cast<f32>(new_performance_count - performance_count) / SDL_GetPerformanceFrequency();
-						performance_count = new_performance_count;
-					}
-
-					SWAP(new_boids, old_boids);
-
-					SDL_SetRenderDrawColor(window_renderer, 0, 0, 0, 255);
-					SDL_RenderClear(window_renderer);
-
-
-					//
-					// Spatial Partition Display.
-					//
-
-					FOR_ELEMS(chunk_node, map.chunk_node_hash_table)
-					{
-						if (*chunk_node)
-						{
-							f32 redness = 0.0f;
-							for (IndexBufferNode* node = (*chunk_node)->index_buffer_node; node; node = node->next_node)
-							{
-								redness += node->index_count;
-							}
-							redness *= 2.0f;
-
-							SDL_SetRenderDrawColor(window_renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
-
-							SDL_Rect rect = { (*chunk_node)->x * PIXELS_PER_METER, WINDOW_HEIGHT - 1 - ((*chunk_node)->y + 1) * PIXELS_PER_METER, PIXELS_PER_METER, PIXELS_PER_METER };
-							SDL_RenderFillRect(window_renderer, &rect);
-						}
-					}
-
-					//
-					// Grid.
-					//
-
-					SDL_SetRenderDrawColor(window_renderer, 64, 64, 64, 255);
-					FOR_RANGE(i, 0, WINDOW_WIDTH / PIXELS_PER_METER + 1)
-					{
-						i32 x = i * PIXELS_PER_METER;
-						SDL_RenderDrawLine(window_renderer, x, 0, x, WINDOW_HEIGHT);
-					}
-
-					FOR_RANGE(i, 0, WINDOW_HEIGHT / PIXELS_PER_METER + 1)
-					{
-						i32 y = WINDOW_HEIGHT - 1 - i * PIXELS_PER_METER;
-						SDL_RenderDrawLine(window_renderer, 0, y, WINDOW_WIDTH, y);
-					}
-
-					//
-					// Boids.
-					//
-
-					SDL_SetRenderDrawColor(window_renderer, 222, 173, 38, 255);
-
-					FOR_ELEMS(new_boid, *new_boids)
-					{
-						Boid* old_boid      = &(*old_boids)[new_boid_index];
-
-						vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
-						vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
-						vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
-						i32 neighboring_boid_count                = 0;
-
-						constexpr f32 BOID_NEIGHBORHOOD_RADIUS = 1.0f;
-						FOR_RANGE(dy, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
-						{
-							FOR_RANGE(dx, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
-							{
-								ChunkNode** chunk_node = find_chunk_node(&map, static_cast<i32>(old_boid->position.x) + dx, static_cast<i32>(old_boid->position.y) + dy);
-
-								ASSERT(chunk_node);
-
-								if (*chunk_node)
-								{
-									ASSERT((*chunk_node)->index_buffer_node);
-
-									IndexBufferNode* current_index_buffer_node = (*chunk_node)->index_buffer_node;
-
-									while (current_index_buffer_node)
-									{
-										FOR_ELEMS(other_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
-										{
-											Boid* other_old_boid = &(*old_boids)[*other_index];
-
-											vf2 to_other          = other_old_boid->position - old_boid->position;
-											f32 distance_to_other = norm(to_other);
-
-											constexpr f32 MINIMUM_RADIUS = 0.01f;
-
-											// @TODO@ Remove epsilon?
-											if (other_old_boid != old_boid && MINIMUM_RADIUS < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
-											{
-												++neighboring_boid_count;
-												average_neighboring_boid_repulsion    -= to_other * (BOID_NEIGHBORHOOD_RADIUS / distance_to_other);
-												average_neighboring_boid_movement     += other_old_boid->direction;
-												average_neighboring_boid_rel_position += to_other;
-											}
-										}
-
-										current_index_buffer_node = current_index_buffer_node->next_node;
-									}
-								}
-							}
-						}
-
-						if (neighboring_boid_count)
-						{
-							average_neighboring_boid_repulsion    /= static_cast<f32>(neighboring_boid_count);
-							average_neighboring_boid_movement     /= static_cast<f32>(neighboring_boid_count);
-							average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
-						}
-
-						constexpr f32 SEPARATION_WEIGHT = 16.0f;
-						constexpr f32 ALIGNMENT_WEIGHT  =  8.0f;
-						constexpr f32 COHESION_WEIGHT   =  8.0f;
-						constexpr f32 BORDER_WEIGHT     = 64.0f;
-						constexpr f32 DRAG_WEIGHT       = 16.0f;
-
-						vf2 desired_movement =
-							average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
-							average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
-							average_neighboring_boid_rel_position * COHESION_WEIGHT   +
-							vf2
-							{
-								-very_strong_curve(old_boid->position.x * PIXELS_PER_METER / static_cast<f32>(WINDOW_WIDTH ) * 2.0f - 1.0f),
-								-very_strong_curve(old_boid->position.y * PIXELS_PER_METER / static_cast<f32>(WINDOW_HEIGHT) * 2.0f - 1.0f)
-							} * BORDER_WEIGHT +
-							old_boid->direction * DRAG_WEIGHT;
-
-						f32 desired_movement_distance = norm(desired_movement);
-
-						constexpr f32 MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.05f;
-
-						if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
-						{
-							new_boid->direction = desired_movement / desired_movement_distance;
-						}
-
-						new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * delta_seconds;
-
-						if (static_cast<i32>(new_boid->position.x) != static_cast<i32>(old_boid->position.x) || static_cast<i32>(new_boid->position.y) != static_cast<i32>(old_boid->position.y))
-						{
-							remove_index_from_map(&map, static_cast<i32>(old_boid->position.x), static_cast<i32>(old_boid->position.y), new_boid_index);
-							push_index_into_map  (&map, static_cast<i32>(new_boid->position.x), static_cast<i32>(new_boid->position.y), new_boid_index);
-						}
-
-						//
-						// Boid Rendering.
-						//
-
-						vf2 offset = new_boid->position * static_cast<f32>(PIXELS_PER_METER);
-
-						SDL_Point pixel_points[ARRAY_CAPACITY(BOID_VERTICES)];
-						FOR_ELEMS(pixel_point, pixel_points)
-						{
-							vf2 point = complex_mul(BOID_VERTICES[pixel_point_index], new_boid->direction) + offset;
-							*pixel_point = { static_cast<i32>(point.x), WINDOW_HEIGHT - 1 - static_cast<i32>(point.y) };
-						}
-
-						SDL_RenderDrawLines(window_renderer, pixel_points, ARRAY_CAPACITY(pixel_points));
-					}
-
-					SDL_RenderPresent(window_renderer);
-				}
+				free(state.memory_arena.base);
 			}
 			else
 			{
