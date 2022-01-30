@@ -9,7 +9,6 @@
 // @TODO@ Multithreading?
 // @TODO@ Movable camera.
 // @TODO@ Zooming.
-// @TODO@ Hotloading.
 // @TODO@ GUI.
 // @TODO@ Non-Euclidan geometry.
 // @TODO@ Target boids: 4096.

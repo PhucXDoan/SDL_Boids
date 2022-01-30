@@ -13,6 +13,7 @@ constexpr i32     WINDOW_WIDTH               = 1280;
 constexpr i32     WINDOW_HEIGHT              = 720;
 constexpr strlit  PROGRAM_DLL_FILE_PATH      = "W:/build/SDL_Boids.dll";
 constexpr strlit  PROGRAM_DLL_TEMP_FILE_PATH = "W:/build/SDL_Boids.dll.temp";
+constexpr strlit  LOCK_FILE_PATH             = "W:/build/LOCK.tmp";
 
 struct Program
 {
@@ -30,5 +31,6 @@ typedef PROTOTYPE_UPDATE(PrototypeUpdate);
 struct HotloadingData
 {
 	byteptr          dll;
+	FILETIME         dll_creation_time;
 	PrototypeUpdate* update;
 };
