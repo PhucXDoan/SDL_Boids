@@ -29,11 +29,18 @@ inline constexpr i32 pxd_ceil(f32 f)
 	return -pxd_floor(-f);
 }
 
-// @TODO@ Hacky! lol.
-inline f32 signed_unit_curve(f32 x)
+inline f32 signed_unit_curve(f32 a, f32 b, f32 x)
 {
-	f32 y = CLAMP(x, -1.0f, 1.0f);
-	return y * y * y * y * y * y * y * y * y * y * y * y * y * y * y;
+	if (x < 0.0f)
+	{
+		return -signed_unit_curve(a, b, -x);
+	}
+	else
+	{
+		f32 y = CLAMP(x, 0.0f, 1.0f);
+		f32 z = ((a + b - 2.0f) * y * y + (-2.0f * a - b + 3.0f) * y + a) * y;
+		return CLAMP(z, 0.0f, 1.0f);
+	}
 }
 
 inline f32 dot(vf2 u, vf2 v)
@@ -272,18 +279,18 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
 	{
-		if (*chunk_node)
+		for (ChunkNode* current_chunk_node = *chunk_node; current_chunk_node; current_chunk_node = current_chunk_node->next_node)
 		{
 			f32 redness = 0.0f;
-			for (IndexBufferNode* node = (*chunk_node)->index_buffer_node; node; node = node->next_node)
+			for (IndexBufferNode* node = current_chunk_node->index_buffer_node; node; node = node->next_node)
 			{
 				redness += node->index_count;
 			}
-			redness *= 2.0f;
+			redness *= HEATMAP_SENSITIVITY;
 
 			SDL_SetRenderDrawColor(program->renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
 
-			SDL_Rect rect = { (*chunk_node)->x * PIXELS_PER_METER, WINDOW_HEIGHT - 1 - ((*chunk_node)->y + 1) * PIXELS_PER_METER, PIXELS_PER_METER, PIXELS_PER_METER };
+			SDL_Rect rect = { current_chunk_node->x * PIXELS_PER_METER, WINDOW_HEIGHT - 1 - (current_chunk_node->y + 1) * PIXELS_PER_METER, PIXELS_PER_METER, PIXELS_PER_METER };
 			SDL_RenderFillRect(program->renderer, &rect);
 		}
 	}
@@ -372,8 +379,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 			average_neighboring_boid_rel_position * COHESION_WEIGHT   +
 			vf2
 			{
-				signed_unit_curve(1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
-				signed_unit_curve(1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
+				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
+				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
 			} * BORDER_WEIGHT +
 			old_boid->direction * DRAG_WEIGHT;
 
@@ -403,8 +410,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 		{
 			*point =
 				{
-					static_cast<i32>(BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y + offset.x),
-					WINDOW_HEIGHT - 1 - static_cast<i32>(BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x + offset.y)
+					static_cast<i32>((BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y) * BOID_SCALAR + offset.x),
+					WINDOW_HEIGHT - 1 - static_cast<i32>((BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x) * BOID_SCALAR + offset.y)
 				};
 		}
 

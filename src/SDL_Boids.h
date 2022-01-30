@@ -12,27 +12,32 @@
 // @TODO@ GUI.
 // @TODO@ Non-Euclidan geometry.
 // @TODO@ Target boids: 4096.
+// @TODO@ Have a random leader boid.
 
-constexpr i32 PIXELS_PER_METER                  = 100;
-constexpr f32 BOID_VELOCITY                     = 1.0f;
-constexpr i32 BOID_AMOUNT                       = 2048;
-constexpr i32 AVAILABLE_INDEX_BUFFER_NODE_COUNT = 256;
-constexpr i32 AVAILABLE_CHUNK_NODE_COUNT        = 256;
+constexpr i32 PIXELS_PER_METER                  = 50;
+constexpr f32 BOID_VELOCITY                     = 1.5f;
+constexpr i32 BOID_AMOUNT                       = 1024;
+constexpr i32 AVAILABLE_INDEX_BUFFER_NODE_COUNT = 512;
+constexpr i32 AVAILABLE_CHUNK_NODE_COUNT        = 512;
 constexpr f32 BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
-constexpr f32 MINIMUM_RADIUS                    = 0.01f;
-constexpr f32 SEPARATION_WEIGHT                 = 16.0f;
-constexpr f32 ALIGNMENT_WEIGHT                  = 8.0f;
+constexpr f32 MINIMUM_RADIUS                    = 0.005f;
+constexpr f32 SEPARATION_WEIGHT                 = 8.0f;
+constexpr f32 ALIGNMENT_WEIGHT                  = 4.0f;
 constexpr f32 COHESION_WEIGHT                   = 8.0f;
-constexpr f32 BORDER_WEIGHT                     = 64.0f;
+constexpr f32 BORDER_WEIGHT                     = 16.0f;
 constexpr f32 DRAG_WEIGHT                       = 16.0f;
-constexpr f32 MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.05f;
+constexpr f32 MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.01f;
+constexpr f32 BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
+constexpr f32 BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
+constexpr f32 HEATMAP_SENSITIVITY               = 8.0f;
+constexpr f32 BOID_SCALAR                       = 0.75f;
 constexpr vf2 BOID_VERTICES[]                   =
 	{
-		{   5.0f,   0.0f },
-		{  -5.0f,   5.0f },
-		{  -1.0f,   0.0f },
-		{  -5.0f,  -5.0f },
-		{   5.0f,   0.0f }
+		vf2 {  5.0f,  0.0f },
+		vf2 { -5.0f,  5.0f },
+		vf2 { -1.0f,  0.0f },
+		vf2 { -5.0f, -5.0f },
+		vf2 {  5.0f,  0.0f }
 	};
 
 struct Boid
