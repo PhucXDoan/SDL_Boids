@@ -6,17 +6,15 @@
 
 // @TODO@ Render boids using textures?
 // @TODO@ Should resizing of window be allowed?
-// @TODO@ Multithreading?
 // @TODO@ Movable camera.
 // @TODO@ Zooming.
 // @TODO@ GUI.
 // @TODO@ Non-Euclidan geometry.
-// @TODO@ Target boids: 4096.
 // @TODO@ Have a random leader boid.
 
 constexpr i32 PIXELS_PER_METER                  = 50;
 constexpr f32 BOID_VELOCITY                     = 1.5f;
-constexpr i32 BOID_AMOUNT                       = 1024;
+constexpr i32 BOID_AMOUNT                       = 4096;
 constexpr i32 AVAILABLE_INDEX_BUFFER_NODE_COUNT = 512;
 constexpr i32 AVAILABLE_CHUNK_NODE_COUNT        = 512;
 constexpr f32 BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
@@ -25,7 +23,7 @@ constexpr f32 SEPARATION_WEIGHT                 = 8.0f;
 constexpr f32 ALIGNMENT_WEIGHT                  = 4.0f;
 constexpr f32 COHESION_WEIGHT                   = 8.0f;
 constexpr f32 BORDER_WEIGHT                     = 16.0f;
-constexpr f32 DRAG_WEIGHT                       = 16.0f;
+constexpr f32 DRAG_WEIGHT                       = 128.0f;
 constexpr f32 MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.01f;
 constexpr f32 BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
 constexpr f32 BORDER_REPULSION_FINAL_TANGENT    = 4.0f;

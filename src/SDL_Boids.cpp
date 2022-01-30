@@ -210,6 +210,101 @@ f32 rand_range(u64* seed, f32 min, f32 max)
 	return (rand_u64(seed) % 0xFFFFFFFF / static_cast<f32>(0xFFFFFFFF)) * (max - min);
 }
 
+vf2 calc_boid_direction(i32 boid_index, Boid* boids, Map* map)
+{
+	vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
+	vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
+	vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
+	i32 neighboring_boid_count                = 0;
+
+	FOR_RANGE(dy, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
+	{
+		FOR_RANGE(dx, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
+		{
+			ChunkNode** chunk_node = find_chunk_node(map, pxd_floor(boids[boid_index].position.x) + dx, pxd_floor(boids[boid_index].position.y) + dy);
+
+			ASSERT(chunk_node);
+
+			if (*chunk_node)
+			{
+				ASSERT((*chunk_node)->index_buffer_node);
+
+				IndexBufferNode* current_index_buffer_node = (*chunk_node)->index_buffer_node;
+
+				while (current_index_buffer_node)
+				{
+					FOR_ELEMS(other_boid_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
+					{
+						vf2 to_other          = boids[*other_boid_index].position - boids[boid_index].position;
+						f32 distance_to_other = norm(to_other);
+
+						// @TODO@ Remove epsilon?
+						if (*other_boid_index != boid_index && MINIMUM_RADIUS < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
+						{
+							++neighboring_boid_count;
+							average_neighboring_boid_repulsion    -= to_other * (BOID_NEIGHBORHOOD_RADIUS / distance_to_other);
+							average_neighboring_boid_movement     += boids[*other_boid_index].direction;
+							average_neighboring_boid_rel_position += to_other;
+						}
+					}
+
+					current_index_buffer_node = current_index_buffer_node->next_node;
+				}
+			}
+		}
+	}
+
+	if (neighboring_boid_count)
+	{
+		average_neighboring_boid_repulsion    /= static_cast<f32>(neighboring_boid_count);
+		average_neighboring_boid_movement     /= static_cast<f32>(neighboring_boid_count);
+		average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
+	}
+
+	vf2 desired_movement =
+		average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
+		average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
+		average_neighboring_boid_rel_position * COHESION_WEIGHT   +
+		vf2
+		{
+			signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - boids[boid_index].position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
+			signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - boids[boid_index].position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
+		} * BORDER_WEIGHT +
+		boids[boid_index].direction * DRAG_WEIGHT;
+
+	f32 desired_movement_distance = norm(desired_movement);
+
+	if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
+	{
+		return desired_movement / desired_movement_distance;
+	}
+	else
+	{
+		return boids[boid_index].direction;
+	}
+}
+
+struct BoidDirectionUpdateThreadData
+{
+	Map*  map;
+	Boid* old_boids;
+	Boid* new_boids;
+	i32   offset;
+	i32   count;
+};
+
+int boid_direction_update_thread(void* void_data)
+{
+	BoidDirectionUpdateThreadData* data = reinterpret_cast<BoidDirectionUpdateThreadData*>(void_data);
+
+	FOR_ELEMS(new_boid, data->new_boids + data->offset, data->count)
+	{
+		new_boid->direction = calc_boid_direction(new_boid_index + data->offset, data->old_boids, data->map);
+	}
+
+	return 0;
+}
+
 extern "C" PROTOTYPE_UPDATE(update)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
@@ -318,78 +413,36 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	SDL_SetRenderDrawColor(program->renderer, 222, 173, 38, 255);
 
+	#if 1
+	BoidDirectionUpdateThreadData data_0;
+	data_0.map       = &state->map;
+	data_0.old_boids = state->old_boids;
+	data_0.new_boids = state->new_boids;
+	data_0.offset    = 0;
+	data_0.count     = BOID_AMOUNT / 2;
+
+	BoidDirectionUpdateThreadData data_1;
+	data_1.map       = &state->map;
+	data_1.old_boids = state->old_boids;
+	data_1.new_boids = state->new_boids;
+	data_1.offset    = BOID_AMOUNT / 2;
+	data_1.count     = pxd_ceil(BOID_AMOUNT / 2.0f);
+
+	SDL_Thread* thread_id_0 = SDL_CreateThread(boid_direction_update_thread, "thread_id_0", reinterpret_cast<void*>(&data_0));
+	SDL_Thread* thread_id_1 = SDL_CreateThread(boid_direction_update_thread, "thread_id_1", reinterpret_cast<void*>(&data_1));
+
+	SDL_WaitThread(thread_id_0, 0);
+	SDL_WaitThread(thread_id_1, 0);
+	#else
+	FOR_ELEMS(new_boid, state->new_boids, BOID_AMOUNT)
+	{
+		new_boid->direction = calc_boid_direction(new_boid_index, state->old_boids, &state->map);
+	}
+	#endif
+
 	FOR_ELEMS(new_boid, state->new_boids, BOID_AMOUNT)
 	{
 		Boid* old_boid = &state->old_boids[new_boid_index];
-
-		vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
-		vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
-		vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
-		i32 neighboring_boid_count                = 0;
-
-		FOR_RANGE(dy, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
-		{
-			FOR_RANGE(dx, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
-			{
-				ChunkNode** chunk_node = find_chunk_node(&state->map, pxd_floor(old_boid->position.x) + dx, pxd_floor(old_boid->position.y) + dy);
-
-				ASSERT(chunk_node);
-
-				if (*chunk_node)
-				{
-					ASSERT((*chunk_node)->index_buffer_node);
-
-					IndexBufferNode* current_index_buffer_node = (*chunk_node)->index_buffer_node;
-
-					while (current_index_buffer_node)
-					{
-						FOR_ELEMS(other_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
-						{
-							Boid* other_old_boid = &state->old_boids[*other_index];
-
-							vf2 to_other          = other_old_boid->position - old_boid->position;
-							f32 distance_to_other = norm(to_other);
-
-							// @TODO@ Remove epsilon?
-							if (other_old_boid != old_boid && MINIMUM_RADIUS < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
-							{
-								++neighboring_boid_count;
-								average_neighboring_boid_repulsion    -= to_other * (BOID_NEIGHBORHOOD_RADIUS / distance_to_other);
-								average_neighboring_boid_movement     += other_old_boid->direction;
-								average_neighboring_boid_rel_position += to_other;
-							}
-						}
-
-						current_index_buffer_node = current_index_buffer_node->next_node;
-					}
-				}
-			}
-		}
-
-		if (neighboring_boid_count)
-		{
-			average_neighboring_boid_repulsion    /= static_cast<f32>(neighboring_boid_count);
-			average_neighboring_boid_movement     /= static_cast<f32>(neighboring_boid_count);
-			average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
-		}
-
-		vf2 desired_movement =
-			average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
-			average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
-			average_neighboring_boid_rel_position * COHESION_WEIGHT   +
-			vf2
-			{
-				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
-				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
-			} * BORDER_WEIGHT +
-			old_boid->direction * DRAG_WEIGHT;
-
-		f32 desired_movement_distance = norm(desired_movement);
-
-		if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
-		{
-			new_boid->direction = desired_movement / desired_movement_distance;
-		}
 
 		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * program->delta_seconds;
 
