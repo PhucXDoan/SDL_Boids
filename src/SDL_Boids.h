@@ -65,6 +65,7 @@ struct Map
 
 struct State
 {
+	u64      seed;
 	memarena general_arena;
 	Map      map;
 	Boid*    old_boids;

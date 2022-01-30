@@ -1,20 +1,9 @@
 #include "SDL_Boids.h"
 
 // @TODO@ Implement the math functions.
-inline f32 cos_f32(f32 rad)
+inline vf2 polar(f32 rad)
 {
-	return static_cast<f32>(cos(rad));
-}
-
-inline f32 sin_f32(f32 rad)
-{
-	return static_cast<f32>(sin(rad));
-}
-
-inline f32 arccos_f32(f32 ratio)
-{
-	ASSERT(-1.0f <= ratio && ratio <= 1.0f);
-	return static_cast<f32>(acos(ratio));
+	return { cosf(rad), sinf(rad) };
 }
 
 inline f32 norm(vf2 v)
@@ -29,41 +18,19 @@ inline vf2 normalize(vf2 v)
 	return v / n;
 }
 
-inline constexpr i32 floor_f32(f32 f)
+inline constexpr i32 pxd_floor(f32 f)
 {
 	i32 t = static_cast<i32>(f);
 	return t + ((f < 0.0f && f - t) ? -1 : 0);
 }
 
-inline constexpr i32 ceil_f32(f32 f)
+inline constexpr i32 pxd_ceil(f32 f)
 {
-	return -floor_f32(-f);
-}
-
-inline vf2 complex_mul(vf2 u, vf2 v)
-{
-	return { u.x * v.x - u.y * v.y, u.x * v.y + u.y * v.x };
-}
-
-inline f32 modulo_f32(f32 n, f32 m)
-{
-	f32 result = n;
-
-	while (result > m)
-	{
-		result -= m;
-	}
-
-	while (result < 0)
-	{
-		result += m;
-	}
-
-	return result;
+	return -pxd_floor(-f);
 }
 
 // @TODO@ Hacky! lol.
-inline f32 very_strong_curve(f32 x)
+inline f32 signed_unit_curve(f32 x)
 {
 	f32 y = CLAMP(x, -1.0f, 1.0f);
 	return y * y * y * y * y * y * y * y * y * y * y * y * y * y * y;
@@ -224,6 +191,18 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 	}
 }
 
+// @TODO@ Make this robust.
+u64 rand_u64(u64* seed)
+{
+	*seed += 36133;
+	return *seed * *seed * 20661081381 + *seed * 53660987 - 5534096 / *seed;
+}
+
+f32 rand_range(u64* seed, f32 min, f32 max)
+{
+	return (rand_u64(seed) % 0xFFFFFFFF / static_cast<f32>(0xFFFFFFFF)) * (max - min);
+}
+
 extern "C" PROTOTYPE_UPDATE(update)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
@@ -231,6 +210,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 	if (!program->is_initialized)
 	{
 		program->is_initialized = true;
+
+		state->seed = 0xBEEFFACE;
 
 		state->general_arena.base = program->memory          + sizeof(State);
 		state->general_arena.size = program->memory_capacity - sizeof(State);
@@ -258,15 +239,18 @@ extern "C" PROTOTYPE_UPDATE(update)
 		state->old_boids = PUSH(&state->general_arena, Boid, BOID_AMOUNT);
 		FOR_ELEMS(old_boid, state->old_boids, BOID_AMOUNT)
 		{
-			f32 angle = modulo_f32(static_cast<f32>(old_boid_index), TAU);
-			old_boid->direction = { cos_f32(angle), sin_f32(angle) };
-			old_boid->position  = { old_boid_index % 64 / 5.0f, old_boid_index / 64 / 5.0f };
+			old_boid->direction = polar(rand_range(&state->seed, 0.0f, TAU));
+			old_boid->position  = { rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_WIDTH) / PIXELS_PER_METER), rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER) };
 
-			push_index_into_map(&state->map, static_cast<i32>(old_boid->position.x), static_cast<i32>(old_boid->position.y), old_boid_index);
+			push_index_into_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), old_boid_index);
 		}
 
 		state->new_boids = PUSH(&state->general_arena, Boid, BOID_AMOUNT);
 	}
+
+	//
+	// Input.
+	//
 
 	for (SDL_Event event; SDL_PollEvent(&event);)
 	{
@@ -336,11 +320,11 @@ extern "C" PROTOTYPE_UPDATE(update)
 		vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
 		i32 neighboring_boid_count                = 0;
 
-		FOR_RANGE(dy, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
+		FOR_RANGE(dy, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
 		{
-			FOR_RANGE(dx, -ceil_f32(BOID_NEIGHBORHOOD_RADIUS), ceil_f32(BOID_NEIGHBORHOOD_RADIUS) + 1)
+			FOR_RANGE(dx, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
 			{
-				ChunkNode** chunk_node = find_chunk_node(&state->map, static_cast<i32>(old_boid->position.x) + dx, static_cast<i32>(old_boid->position.y) + dy);
+				ChunkNode** chunk_node = find_chunk_node(&state->map, pxd_floor(old_boid->position.x) + dx, pxd_floor(old_boid->position.y) + dy);
 
 				ASSERT(chunk_node);
 
@@ -388,8 +372,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 			average_neighboring_boid_rel_position * COHESION_WEIGHT   +
 			vf2
 			{
-				-very_strong_curve(old_boid->position.x * PIXELS_PER_METER / static_cast<f32>(WINDOW_WIDTH ) * 2.0f - 1.0f),
-				-very_strong_curve(old_boid->position.y * PIXELS_PER_METER / static_cast<f32>(WINDOW_HEIGHT) * 2.0f - 1.0f)
+				signed_unit_curve(1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
+				signed_unit_curve(1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
 			} * BORDER_WEIGHT +
 			old_boid->direction * DRAG_WEIGHT;
 
@@ -402,10 +386,10 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * program->delta_seconds;
 
-		if (static_cast<i32>(new_boid->position.x) != static_cast<i32>(old_boid->position.x) || static_cast<i32>(new_boid->position.y) != static_cast<i32>(old_boid->position.y))
+		if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
 		{
-			remove_index_from_map(&state->map, static_cast<i32>(old_boid->position.x), static_cast<i32>(old_boid->position.y), new_boid_index);
-			push_index_into_map  (&state->map, static_cast<i32>(new_boid->position.x), static_cast<i32>(new_boid->position.y), new_boid_index);
+			remove_index_from_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), new_boid_index);
+			push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
 		}
 
 		//
@@ -414,14 +398,17 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		vf2 offset = new_boid->position * static_cast<f32>(PIXELS_PER_METER);
 
-		SDL_Point pixel_points[ARRAY_CAPACITY(BOID_VERTICES)];
-		FOR_ELEMS(pixel_point, pixel_points)
+		SDL_Point points[ARRAY_CAPACITY(BOID_VERTICES)];
+		FOR_ELEMS(point, points)
 		{
-			vf2 point = complex_mul(BOID_VERTICES[pixel_point_index], new_boid->direction) + offset;
-			*pixel_point = { static_cast<i32>(point.x), WINDOW_HEIGHT - 1 - static_cast<i32>(point.y) };
+			*point =
+				{
+					static_cast<i32>(BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y + offset.x),
+					WINDOW_HEIGHT - 1 - static_cast<i32>(BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x + offset.y)
+				};
 		}
 
-		SDL_RenderDrawLines(program->renderer, pixel_points, ARRAY_CAPACITY(pixel_points));
+		SDL_RenderDrawLines(program->renderer, points, ARRAY_CAPACITY(points));
 	}
 
 	SDL_RenderPresent(program->renderer);
