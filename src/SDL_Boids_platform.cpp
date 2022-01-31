@@ -74,7 +74,11 @@ int main(int, char**)
 					program.delta_seconds = MINIMUM(program.delta_seconds, 1.0f); // @TODO@ Find a better way to handle long pauses?
 
 					FILETIME current_program_dll_creation_time = get_program_dll_creation_time();
+					#if 0 // @TODO@ Hotloading is disabled until multithreading is figured out.
 					if (CompareFileTime(&current_program_dll_creation_time, &hotloading_data.dll_creation_time))
+					#else
+					if (false)
+					#endif
 					{
 						WIN32_FILE_ATTRIBUTE_DATA attributes_;
 						if (!GetFileAttributesEx(LOCK_FILE_PATH, GetFileExInfoStandard, &attributes_))

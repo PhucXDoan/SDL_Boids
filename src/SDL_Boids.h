@@ -23,12 +23,13 @@ constexpr f32 SEPARATION_WEIGHT                 = 8.0f;
 constexpr f32 ALIGNMENT_WEIGHT                  = 4.0f;
 constexpr f32 COHESION_WEIGHT                   = 8.0f;
 constexpr f32 BORDER_WEIGHT                     = 16.0f;
-constexpr f32 DRAG_WEIGHT                       = 128.0f;
+constexpr f32 DRAG_WEIGHT                       = 32.0f;
 constexpr f32 MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.01f;
 constexpr f32 BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
 constexpr f32 BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
 constexpr f32 HEATMAP_SENSITIVITY               = 8.0f;
 constexpr f32 BOID_SCALAR                       = 0.75f;
+constexpr i32 THREAD_COUNT                      = 8;
 constexpr vf2 BOID_VERTICES[]                   =
 	{
 		vf2 {  5.0f,  0.0f },
@@ -66,11 +67,23 @@ struct Map
 	ChunkNode*       chunk_node_hash_table[256];
 };
 
+struct State;
+struct ThreadData
+{
+	SDL_atomic_t terminated;
+	SDL_sem*     semaphore;
+	State*       state;
+	i32          new_boids_offset;
+	i32          new_boids_count;
+};
+
 struct State
 {
-	u64      seed;
-	memarena general_arena;
-	Map      map;
-	Boid*    old_boids;
-	Boid*    new_boids;
+	ThreadData  thread_datas[THREAD_COUNT];
+	SDL_Thread* threads[THREAD_COUNT];
+	u64         seed;
+	memarena    general_arena;
+	Map         map;
+	Boid*       old_boids;
+	Boid*       new_boids;
 };

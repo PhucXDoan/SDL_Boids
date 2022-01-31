@@ -284,22 +284,21 @@ vf2 calc_boid_direction(i32 boid_index, Boid* boids, Map* map)
 	}
 }
 
-struct BoidDirectionUpdateThreadData
+int thread_work(void* void_data)
 {
-	Map*  map;
-	Boid* old_boids;
-	Boid* new_boids;
-	i32   offset;
-	i32   count;
-};
+	ThreadData* data = reinterpret_cast<ThreadData*>(void_data);
 
-int boid_direction_update_thread(void* void_data)
-{
-	BoidDirectionUpdateThreadData* data = reinterpret_cast<BoidDirectionUpdateThreadData*>(void_data);
-
-	FOR_ELEMS(new_boid, data->new_boids + data->offset, data->count)
+	while (!SDL_AtomicGet(&data->terminated))
 	{
-		new_boid->direction = calc_boid_direction(new_boid_index + data->offset, data->old_boids, data->map);
+		SDL_SemWait(data->semaphore);
+
+		if (!SDL_AtomicGet(&data->terminated))
+		{
+			FOR_ELEMS(new_boid, data->state->new_boids + data->new_boids_offset, data->new_boids_count)
+			{
+				new_boid->direction = calc_boid_direction(new_boid_index + data->new_boids_offset, data->state->old_boids, &data->state->map);
+			}
+		}
 	}
 
 	return 0;
@@ -312,6 +311,18 @@ extern "C" PROTOTYPE_UPDATE(update)
 	if (!program->is_initialized)
 	{
 		program->is_initialized = true;
+
+		FOR_ELEMS(thread, state->threads)
+		{
+			ThreadData* data = &state->thread_datas[thread_index];
+			SDL_AtomicSet(&data->terminated, false);
+			data->semaphore        = SDL_CreateSemaphore(0);
+			data->state            = state;
+			data->new_boids_offset = thread_index * (BOID_AMOUNT / THREAD_COUNT); // @TODO@ Fix this! Find a way to correctly partition the boids.
+			data->new_boids_count  = pxd_ceil(static_cast<f32>(BOID_AMOUNT) / THREAD_COUNT);
+			*thread = SDL_CreateThread(thread_work, "`thread_work`", reinterpret_cast<void*>(data));
+			DEBUG_printf("Created thread (#%d)\n", thread_index);
+		}
 
 		state->seed = 0xBEEFFACE;
 
@@ -361,6 +372,18 @@ extern "C" PROTOTYPE_UPDATE(update)
 			case SDL_QUIT:
 			{
 				program->is_running = false;
+
+				FOR_ELEMS(thread, state->threads)
+				{
+					ThreadData* data = &state->thread_datas[thread_index];
+					SDL_AtomicSet(&data->terminated, true);
+					SDL_SemPost(data->semaphore);
+					SDL_WaitThread(*thread, 0);
+					SDL_DestroySemaphore(data->semaphore);
+					DEBUG_printf("Freed thread (#%d)\n", thread_index);
+				}
+
+				return;
 			} break;
 		}
 	}
@@ -413,32 +436,15 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	SDL_SetRenderDrawColor(program->renderer, 222, 173, 38, 255);
 
-	#if 1
-	BoidDirectionUpdateThreadData data_0;
-	data_0.map       = &state->map;
-	data_0.old_boids = state->old_boids;
-	data_0.new_boids = state->new_boids;
-	data_0.offset    = 0;
-	data_0.count     = BOID_AMOUNT / 2;
-
-	BoidDirectionUpdateThreadData data_1;
-	data_1.map       = &state->map;
-	data_1.old_boids = state->old_boids;
-	data_1.new_boids = state->new_boids;
-	data_1.offset    = BOID_AMOUNT / 2;
-	data_1.count     = pxd_ceil(BOID_AMOUNT / 2.0f);
-
-	SDL_Thread* thread_id_0 = SDL_CreateThread(boid_direction_update_thread, "thread_id_0", reinterpret_cast<void*>(&data_0));
-	SDL_Thread* thread_id_1 = SDL_CreateThread(boid_direction_update_thread, "thread_id_1", reinterpret_cast<void*>(&data_1));
-
-	SDL_WaitThread(thread_id_0, 0);
-	SDL_WaitThread(thread_id_1, 0);
-	#else
-	FOR_ELEMS(new_boid, state->new_boids, BOID_AMOUNT)
+	FOR_ELEMS(thread_data, state->thread_datas)
 	{
-		new_boid->direction = calc_boid_direction(new_boid_index, state->old_boids, &state->map);
+		SDL_SemPost(thread_data->semaphore);
 	}
-	#endif
+
+	FOR_ELEMS(thread_data, state->thread_datas)
+	{
+		while (SDL_SemValue(thread_data->semaphore));
+	}
 
 	FOR_ELEMS(new_boid, state->new_boids, BOID_AMOUNT)
 	{
