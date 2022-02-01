@@ -29,7 +29,7 @@ constexpr f32 BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
 constexpr f32 BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
 constexpr f32 HEATMAP_SENSITIVITY               = 8.0f;
 constexpr f32 BOID_SCALAR                       = 0.75f;
-constexpr i32 THREAD_COUNT                      = 8;
+constexpr i32 THREAD_COUNT                      = 4;
 constexpr vf2 BOID_VERTICES[]                   =
 	{
 		vf2 {  5.0f,  0.0f },
@@ -70,7 +70,6 @@ struct Map
 struct State;
 struct ThreadData
 {
-	SDL_atomic_t terminated;
 	SDL_sem*     semaphore;
 	State*       state;
 	i32          new_boids_offset;
@@ -79,11 +78,12 @@ struct ThreadData
 
 struct State
 {
-	ThreadData  thread_datas[THREAD_COUNT];
-	SDL_Thread* threads[THREAD_COUNT];
-	u64         seed;
-	memarena    general_arena;
-	Map         map;
-	Boid*       old_boids;
-	Boid*       new_boids;
+	SDL_atomic_t terminated;
+	ThreadData   thread_datas[THREAD_COUNT];
+	SDL_Thread*  threads[THREAD_COUNT];
+	u64          seed;
+	memarena     general_arena;
+	Map          map;
+	Boid*        old_boids;
+	Boid*        new_boids;
 };

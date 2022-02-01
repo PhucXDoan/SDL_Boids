@@ -288,11 +288,11 @@ int thread_work(void* void_data)
 {
 	ThreadData* data = reinterpret_cast<ThreadData*>(void_data);
 
-	while (!SDL_AtomicGet(&data->terminated))
+	while (!SDL_AtomicGet(&data->state->terminated))
 	{
 		SDL_SemWait(data->semaphore);
 
-		if (!SDL_AtomicGet(&data->terminated))
+		if (!SDL_AtomicGet(&data->state->terminated))
 		{
 			FOR_ELEMS(new_boid, data->state->new_boids + data->new_boids_offset, data->new_boids_count)
 			{
@@ -312,10 +312,11 @@ extern "C" PROTOTYPE_UPDATE(update)
 	{
 		program->is_initialized = true;
 
+		SDL_AtomicSet(&state->terminated, false);
+
 		FOR_ELEMS(thread, state->threads)
 		{
 			ThreadData* data = &state->thread_datas[thread_index];
-			SDL_AtomicSet(&data->terminated, false);
 			data->semaphore        = SDL_CreateSemaphore(0);
 			data->state            = state;
 			data->new_boids_offset = thread_index * (BOID_AMOUNT / THREAD_COUNT); // @TODO@ Fix this! Find a way to correctly partition the boids.
@@ -373,10 +374,11 @@ extern "C" PROTOTYPE_UPDATE(update)
 			{
 				program->is_running = false;
 
+				SDL_AtomicSet(&state->terminated, true);
+
 				FOR_ELEMS(thread, state->threads)
 				{
 					ThreadData* data = &state->thread_datas[thread_index];
-					SDL_AtomicSet(&data->terminated, true);
 					SDL_SemPost(data->semaphore);
 					SDL_WaitThread(*thread, 0);
 					SDL_DestroySemaphore(data->semaphore);
