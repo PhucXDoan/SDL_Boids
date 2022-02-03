@@ -298,6 +298,8 @@ int thread_work(void* void_data)
 			{
 				new_boid->direction = calc_boid_direction(new_boid_index + data->new_boids_offset, data->state->old_boids, &data->state->map);
 			}
+
+			SDL_SemPost(data->state->completed_work);
 		}
 	}
 
@@ -313,6 +315,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 		program->is_initialized = true;
 
 		SDL_AtomicSet(&state->terminated, false);
+		state->completed_work = SDL_CreateSemaphore(0);
 
 		FOR_ELEMS(thread, state->threads)
 		{
@@ -385,6 +388,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 					DEBUG_printf("Freed thread (#%d)\n", thread_index);
 				}
 
+				SDL_DestroySemaphore(state->completed_work);
 				return;
 			} break;
 		}
@@ -443,9 +447,9 @@ extern "C" PROTOTYPE_UPDATE(update)
 		SDL_SemPost(thread_data->semaphore);
 	}
 
-	FOR_ELEMS(thread_data, state->thread_datas)
+	FOR_RANGE(i, 0, THREAD_COUNT)
 	{
-		while (SDL_SemValue(thread_data->semaphore));
+		SDL_SemWait(state->completed_work);
 	}
 
 	FOR_ELEMS(new_boid, state->new_boids, BOID_AMOUNT)

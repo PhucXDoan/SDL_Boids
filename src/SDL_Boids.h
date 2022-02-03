@@ -32,11 +32,11 @@ constexpr f32 BOID_SCALAR                       = 0.75f;
 constexpr i32 THREAD_COUNT                      = 4;
 constexpr vf2 BOID_VERTICES[]                   =
 	{
-		vf2 {  5.0f,  0.0f },
-		vf2 { -5.0f,  5.0f },
-		vf2 { -1.0f,  0.0f },
-		vf2 { -5.0f, -5.0f },
-		vf2 {  5.0f,  0.0f }
+		{  5.0f,  0.0f },
+		{ -5.0f,  5.0f },
+		{ -1.0f,  0.0f },
+		{ -5.0f, -5.0f },
+		{  5.0f,  0.0f }
 	};
 
 struct Boid
@@ -79,6 +79,7 @@ struct ThreadData
 struct State
 {
 	SDL_atomic_t terminated;
+	SDL_sem*     completed_work;
 	ThreadData   thread_datas[THREAD_COUNT];
 	SDL_Thread*  threads[THREAD_COUNT];
 	u64          seed;
