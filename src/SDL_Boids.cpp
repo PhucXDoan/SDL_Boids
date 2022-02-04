@@ -319,12 +319,23 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		FOR_ELEMS(thread, state->threads)
 		{
+			i32 base_boid_workload = pxd_floor(static_cast<f32>(BOID_AMOUNT) / THREAD_COUNT);
+
 			ThreadData* data = &state->thread_datas[thread_index];
 			data->semaphore        = SDL_CreateSemaphore(0);
 			data->state            = state;
-			data->new_boids_offset = thread_index * (BOID_AMOUNT / THREAD_COUNT); // @TODO@ Fix this! Find a way to correctly partition the boids.
-			data->new_boids_count  = pxd_ceil(static_cast<f32>(BOID_AMOUNT) / THREAD_COUNT);
+			data->new_boids_offset = base_boid_workload * thread_index;
+			if (thread_index == ARRAY_CAPACITY(state->threads) - 1) // @TODO@ Be more confident about this workload separation.
+			{
+				data->new_boids_count = BOID_AMOUNT - base_boid_workload * (THREAD_COUNT - 1);
+			}
+			else
+			{
+				data->new_boids_count = base_boid_workload;
+			}
+
 			*thread = SDL_CreateThread(thread_work, "`thread_work`", reinterpret_cast<void*>(data));
+
 			DEBUG_printf("Created thread (#%d)\n", thread_index);
 		}
 
