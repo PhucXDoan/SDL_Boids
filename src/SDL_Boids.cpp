@@ -306,51 +306,27 @@ int thread_work(void* void_data)
 	return 0;
 }
 
-void initialize_threads(State* state)
-{
-	SDL_AtomicSet(&state->terminated, false);
-	state->completed_work = SDL_CreateSemaphore(0);
-
-	FOR_ELEMS(thread, state->threads)
-	{
-		ThreadData* data = &state->thread_datas[thread_index];
-		data->semaphore        = SDL_CreateSemaphore(0);
-		data->state            = state;
-		data->new_boids_offset = thread_index * (BOID_AMOUNT / THREAD_COUNT); // @TODO@ Fix this! Find a way to correctly partition the boids.
-		data->new_boids_count  = pxd_ceil(static_cast<f32>(BOID_AMOUNT) / THREAD_COUNT);
-		*thread = SDL_CreateThread(thread_work, "`thread_work`", reinterpret_cast<void*>(data));
-		DEBUG_printf("Created thread (#%d)\n", thread_index);
-	}
-}
-
-void release_threads(State* state)
-{
-	SDL_AtomicSet(&state->terminated, true);
-
-	FOR_ELEMS(thread, state->threads)
-	{
-		ThreadData* data = &state->thread_datas[thread_index];
-		SDL_SemPost(data->semaphore);
-		SDL_WaitThread(*thread, 0);
-		SDL_DestroySemaphore(data->semaphore);
-		DEBUG_printf("Freed thread (#%d)\n", thread_index);
-	}
-
-	SDL_DestroySemaphore(state->completed_work);
-}
-
 extern "C" PROTOTYPE_UPDATE(update)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
-	if (program->is_booting)
-	{
-		initialize_threads(state);
-	}
-
 	if (!program->is_initialized)
 	{
 		program->is_initialized = true;
+
+		SDL_AtomicSet(&state->terminated, false);
+		state->completed_work = SDL_CreateSemaphore(0);
+
+		FOR_ELEMS(thread, state->threads)
+		{
+			ThreadData* data = &state->thread_datas[thread_index];
+			data->semaphore        = SDL_CreateSemaphore(0);
+			data->state            = state;
+			data->new_boids_offset = thread_index * (BOID_AMOUNT / THREAD_COUNT); // @TODO@ Fix this! Find a way to correctly partition the boids.
+			data->new_boids_count  = pxd_ceil(static_cast<f32>(BOID_AMOUNT) / THREAD_COUNT);
+			*thread = SDL_CreateThread(thread_work, "`thread_work`", reinterpret_cast<void*>(data));
+			DEBUG_printf("Created thread (#%d)\n", thread_index);
+		}
 
 		state->seed = 0xBEEFFACE;
 
@@ -400,7 +376,19 @@ extern "C" PROTOTYPE_UPDATE(update)
 			case SDL_QUIT:
 			{
 				program->is_running = false;
-				release_threads(state);
+
+				SDL_AtomicSet(&state->terminated, true);
+
+				FOR_ELEMS(thread, state->threads)
+				{
+					ThreadData* data = &state->thread_datas[thread_index];
+					SDL_SemPost(data->semaphore);
+					SDL_WaitThread(*thread, 0);
+					SDL_DestroySemaphore(data->semaphore);
+					DEBUG_printf("Freed thread (#%d)\n", thread_index);
+				}
+
+				SDL_DestroySemaphore(state->completed_work);
 				return;
 			} break;
 		}
@@ -498,9 +486,4 @@ extern "C" PROTOTYPE_UPDATE(update)
 	SDL_RenderPresent(program->renderer);
 
 	SWAP(state->new_boids, state->old_boids);
-
-	if (program->is_restarting)
-	{
-		release_threads(state);
-	}
 }

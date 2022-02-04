@@ -56,14 +56,12 @@ int main(int, char**)
 			if (window_renderer)
 			{
 				Program program;
-				program.is_running        = true;
-				program.is_initialized    = false;
-				program.is_restarting     = true;
-				program.is_booting        = false;
-				program.delta_seconds     = 0;
-				program.renderer          = window_renderer;
-				program.memory            = reinterpret_cast<byteptr>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
-				program.memory_capacity   = MEMORY_CAPACITY;
+				program.is_running      = true;
+				program.is_initialized  = false;
+				program.delta_seconds   = 0;
+				program.renderer        = window_renderer;
+				program.memory          = reinterpret_cast<byteptr>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+				program.memory_capacity = MEMORY_CAPACITY;
 
 				u64 performance_count = SDL_GetPerformanceCounter();
 
@@ -81,17 +79,8 @@ int main(int, char**)
 						WIN32_FILE_ATTRIBUTE_DATA attributes_;
 						if (!GetFileAttributesEx(LOCK_FILE_PATH, GetFileExInfoStandard, &attributes_))
 						{
-							program.is_restarting = true;
-							hotloading_data.update(&program);
 							reload_program_dll(&hotloading_data);
 						}
-					}
-					else if (program.is_restarting)
-					{
-						program.is_restarting = false;
-						program.is_booting    = true;
-						hotloading_data.update(&program);
-						program.is_booting    = false;
 					}
 					else
 					{
