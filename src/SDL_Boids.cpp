@@ -210,93 +210,90 @@ f32 rand_range(u64* seed, f32 min, f32 max)
 	return (rand_u64(seed) % 0xFFFFFFFF / static_cast<f32>(0xFFFFFFFF)) * (max - min);
 }
 
-vf2 calc_boid_direction(i32 boid_index, Boid* boids, Map* map)
+void update_boid_directions(Boid* old_boids, Boid* new_boids, i32 starting_index, i32 count, Map* map)
 {
-	vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
-	vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
-	vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
-	i32 neighboring_boid_count                = 0;
-
-	FOR_RANGE(dy, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
+	FOR_RANGE(boid_index, starting_index, starting_index + count)
 	{
-		FOR_RANGE(dx, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
+		Boid* old_boid = &old_boids[boid_index];
+
+		vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
+		vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
+		vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
+		i32 neighboring_boid_count                = 0;
+
+		FOR_RANGE(dy, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
 		{
-			ChunkNode** chunk_node = find_chunk_node(map, pxd_floor(boids[boid_index].position.x) + dx, pxd_floor(boids[boid_index].position.y) + dy);
-
-			ASSERT(chunk_node);
-
-			if (*chunk_node)
+			FOR_RANGE(dx, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
 			{
-				ASSERT((*chunk_node)->index_buffer_node);
+				ChunkNode** chunk_node = find_chunk_node(map, pxd_floor(old_boid->position.x) + dx, pxd_floor(old_boid->position.y) + dy);
 
-				IndexBufferNode* current_index_buffer_node = (*chunk_node)->index_buffer_node;
+				ASSERT(chunk_node);
 
-				while (current_index_buffer_node)
+				if (*chunk_node)
 				{
-					FOR_ELEMS(other_boid_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
-					{
-						if (*other_boid_index != boid_index)
-						{
-							vf2 to_other          = boids[*other_boid_index].position - boids[boid_index].position;
-							f32 distance_to_other = norm(to_other);
+					ASSERT((*chunk_node)->index_buffer_node);
 
-							if (IN_RANGE(distance_to_other, MINIMUM_RADIUS, BOID_NEIGHBORHOOD_RADIUS))
+					IndexBufferNode* current_index_buffer_node = (*chunk_node)->index_buffer_node;
+
+					while (current_index_buffer_node)
+					{
+						FOR_ELEMS(other_boid_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
+						{
+							if (*other_boid_index != boid_index)
 							{
-								++neighboring_boid_count;
-								average_neighboring_boid_repulsion    -= to_other * BOID_NEIGHBORHOOD_RADIUS / distance_to_other;
-								average_neighboring_boid_movement     += boids[*other_boid_index].direction;
-								average_neighboring_boid_rel_position += to_other;
+								vf2 to_other          = old_boids[*other_boid_index].position - old_boid->position;
+								f32 distance_to_other = norm(to_other);
+
+								if (IN_RANGE(distance_to_other, MINIMUM_RADIUS, BOID_NEIGHBORHOOD_RADIUS))
+								{
+									++neighboring_boid_count;
+									average_neighboring_boid_repulsion    -= to_other * BOID_NEIGHBORHOOD_RADIUS / distance_to_other;
+									average_neighboring_boid_movement     += old_boids[*other_boid_index].direction;
+									average_neighboring_boid_rel_position += to_other;
+								}
 							}
 						}
-					}
 
-					current_index_buffer_node = current_index_buffer_node->next_node;
+						current_index_buffer_node = current_index_buffer_node->next_node;
+					}
 				}
 			}
 		}
-	}
 
-	if (neighboring_boid_count)
-	{
-		average_neighboring_boid_repulsion    /= static_cast<f32>(neighboring_boid_count);
-		average_neighboring_boid_movement     /= static_cast<f32>(neighboring_boid_count);
-		average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
-	}
-
-	vf2 desired_movement =
-		average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
-		average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
-		average_neighboring_boid_rel_position * COHESION_WEIGHT   +
-		vf2
+		if (neighboring_boid_count)
 		{
-			signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - boids[boid_index].position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
-			signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - boids[boid_index].position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
-		} * BORDER_WEIGHT +
-		boids[boid_index].direction * DRAG_WEIGHT;
+			average_neighboring_boid_repulsion    /= static_cast<f32>(neighboring_boid_count);
+			average_neighboring_boid_movement     /= static_cast<f32>(neighboring_boid_count);
+			average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
+		}
 
-	f32 desired_movement_distance = norm(desired_movement);
+		vf2 desired_movement =
+			average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
+			average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
+			average_neighboring_boid_rel_position * COHESION_WEIGHT   +
+			vf2
+			{
+				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
+				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
+			} * BORDER_WEIGHT +
+			old_boid->direction * DRAG_WEIGHT;
 
-	if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
-	{
-		return desired_movement / desired_movement_distance;
-	}
-	else
-	{
-		return boids[boid_index].direction;
+		f32 desired_movement_distance = norm(desired_movement);
+
+		new_boids[boid_index].direction =
+			desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE
+				? desired_movement / desired_movement_distance
+				: old_boid->direction;
 	}
 }
 
-int thread_work(void* void_data)
+int helper_thread_work(void* void_data)
 {
-	ThreadData* data = reinterpret_cast<ThreadData*>(void_data);
+	HelperThreadData* data = reinterpret_cast<HelperThreadData*>(void_data);
 
-	while (SDL_SemWait(data->activation), !data->state->threads_should_exit) // @TODO@ Comman operator (interrobang!?).
+	while (SDL_SemWait(data->activation), !data->state->helper_threads_should_exit)
 	{
-		FOR_ELEMS(new_boid, data->state->new_boids + data->new_boids_offset, data->new_boids_count)
-		{
-			new_boid->direction = calc_boid_direction(new_boid_index + data->new_boids_offset, data->state->old_boids, &data->state->map);
-		}
-
+		update_boid_directions(data->state->old_boids, data->state->new_boids, data->new_boids_offset, BASE_WORKLOAD_FOR_HELPER_THREADS, &data->state->map);
 		SDL_SemPost(data->state->completed_work);
 	}
 
@@ -311,28 +308,17 @@ extern "C" PROTOTYPE_UPDATE(update)
 	{
 		program->is_initialized = true;
 
-		state->threads_should_exit = false;
-		state->completed_work      = SDL_CreateSemaphore(0);
+		state->helper_threads_should_exit = false;
+		state->completed_work             = SDL_CreateSemaphore(0);
 
-		FOR_ELEMS(thread_data, state->thread_datas)
+		FOR_ELEMS(data, state->helper_thread_datas)
 		{
-			i32 base_boid_workload = pxd_floor(static_cast<f32>(BOID_AMOUNT) / THREAD_COUNT);
+			data->activation       = SDL_CreateSemaphore(0);
+			data->state            = state;
+			data->new_boids_offset = BASE_WORKLOAD_FOR_HELPER_THREADS * data_index;
+			data->helper_thread    = SDL_CreateThread(helper_thread_work, "`helper_thread_work`", reinterpret_cast<void*>(data));
 
-			thread_data->activation       = SDL_CreateSemaphore(0);
-			thread_data->state            = state;
-			thread_data->new_boids_offset = base_boid_workload * thread_data_index;
-			if (thread_data_index == ARRAY_CAPACITY(state->thread_datas) - 1) // @TODO@ Be more confident about this workload separation.
-			{
-				thread_data->new_boids_count = BOID_AMOUNT - base_boid_workload * (THREAD_COUNT - 1);
-			}
-			else
-			{
-				thread_data->new_boids_count = base_boid_workload;
-			}
-
-			thread_data->thread = SDL_CreateThread(thread_work, "`thread_work`", reinterpret_cast<void*>(thread_data));
-
-			DEBUG_printf("Created thread (#%d)\n", thread_data_index);
+			DEBUG_printf("Created helper thread (#%d)\n", data_index);
 		}
 
 		state->seed = 0xBEEFFACE;
@@ -382,19 +368,20 @@ extern "C" PROTOTYPE_UPDATE(update)
 		{
 			case SDL_QUIT:
 			{
-				state->threads_should_exit = true;
+				state->helper_threads_should_exit = true;
 
-				FOR_ELEMS(thread_data, state->thread_datas)
+				FOR_ELEMS(data, state->helper_thread_datas)
 				{
-					SDL_SemPost(thread_data->activation);
-					SDL_WaitThread(thread_data->thread, 0);
-					SDL_DestroySemaphore(thread_data->activation);
-					DEBUG_printf("Freed thread (#%d)\n", thread_data_index);
+					SDL_SemPost(data->activation);
+					SDL_WaitThread(data->helper_thread, 0);
+					SDL_DestroySemaphore(data->activation);
+					DEBUG_printf("Freed helper thread (#%d)\n", data_index);
 				}
 
 				SDL_DestroySemaphore(state->completed_work);
 
 				program->is_running = false;
+
 				return;
 			} break;
 		}
@@ -448,12 +435,14 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	SDL_SetRenderDrawColor(program->renderer, 222, 173, 38, 255);
 
-	FOR_ELEMS(thread_data, state->thread_datas)
+	FOR_ELEMS(data, state->helper_thread_datas)
 	{
-		SDL_SemPost(thread_data->activation);
+		SDL_SemPost(data->activation);
 	}
 
-	FOR_RANGE(i, 0, THREAD_COUNT)
+	update_boid_directions(state->old_boids, state->new_boids, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD, &state->map);
+
+	FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
 	{
 		SDL_SemWait(state->completed_work);
 	}

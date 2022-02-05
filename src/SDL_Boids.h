@@ -29,7 +29,7 @@ constexpr f32 BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
 constexpr f32 BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
 constexpr f32 HEATMAP_SENSITIVITY               = 8.0f;
 constexpr f32 BOID_SCALAR                       = 0.75f;
-constexpr i32 THREAD_COUNT                      = 4;
+constexpr i32 HELPER_THREAD_COUNT               = 4;
 constexpr vf2 BOID_VERTICES[]                   =
 	{
 		{  5.0f,  0.0f },
@@ -38,6 +38,10 @@ constexpr vf2 BOID_VERTICES[]                   =
 		{ -5.0f, -5.0f },
 		{  5.0f,  0.0f }
 	};
+
+constexpr i32 BASE_WORKLOAD_FOR_HELPER_THREADS = BOID_AMOUNT / (HELPER_THREAD_COUNT + 1);
+constexpr i32 MAIN_THREAD_NEW_BOIDS_OFFSET     = HELPER_THREAD_COUNT * BASE_WORKLOAD_FOR_HELPER_THREADS;
+constexpr i32 MAIN_THREAD_WORKLOAD             = BOID_AMOUNT - MAIN_THREAD_NEW_BOIDS_OFFSET;
 
 struct Boid
 {
@@ -68,23 +72,22 @@ struct Map
 };
 
 struct State;
-struct ThreadData
+struct HelperThreadData
 {
 	SDL_sem*     activation;
 	State*       state;
 	i32          new_boids_offset;
-	i32          new_boids_count;
-	SDL_Thread*  thread;
+	SDL_Thread*  helper_thread;
 };
 
 struct State
 {
-	bool32       threads_should_exit;
-	SDL_sem*     completed_work;
-	ThreadData   thread_datas[THREAD_COUNT];
-	u64          seed;
-	memarena     general_arena;
-	Map          map;
-	Boid*        old_boids;
-	Boid*        new_boids;
+	bool32           helper_threads_should_exit;
+	SDL_sem*         completed_work;
+	HelperThreadData helper_thread_datas[HELPER_THREAD_COUNT];
+	u64              seed;
+	memarena         general_arena;
+	Map              map;
+	Boid*            old_boids;
+	Boid*            new_boids;
 };
