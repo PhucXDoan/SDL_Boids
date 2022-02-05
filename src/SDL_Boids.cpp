@@ -290,7 +290,7 @@ int thread_work(void* void_data)
 {
 	ThreadData* data = reinterpret_cast<ThreadData*>(void_data);
 
-	while (SDL_SemWait(data->semaphore), !data->state->threads_should_exit) // @TODO@ Comman operator (interrobang!?).
+	while (SDL_SemWait(data->activation), !data->state->threads_should_exit) // @TODO@ Comman operator (interrobang!?).
 	{
 		FOR_ELEMS(new_boid, data->state->new_boids + data->new_boids_offset, data->new_boids_count)
 		{
@@ -318,7 +318,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 		{
 			i32 base_boid_workload = pxd_floor(static_cast<f32>(BOID_AMOUNT) / THREAD_COUNT);
 
-			thread_data->semaphore        = SDL_CreateSemaphore(0);
+			thread_data->activation       = SDL_CreateSemaphore(0);
 			thread_data->state            = state;
 			thread_data->new_boids_offset = base_boid_workload * thread_data_index;
 			if (thread_data_index == ARRAY_CAPACITY(state->thread_datas) - 1) // @TODO@ Be more confident about this workload separation.
@@ -386,9 +386,9 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 				FOR_ELEMS(thread_data, state->thread_datas)
 				{
-					SDL_SemPost(thread_data->semaphore);
+					SDL_SemPost(thread_data->activation);
 					SDL_WaitThread(thread_data->thread, 0);
-					SDL_DestroySemaphore(thread_data->semaphore);
+					SDL_DestroySemaphore(thread_data->activation);
 					DEBUG_printf("Freed thread (#%d)\n", thread_data_index);
 				}
 
@@ -450,7 +450,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	FOR_ELEMS(thread_data, state->thread_datas)
 	{
-		SDL_SemPost(thread_data->semaphore);
+		SDL_SemPost(thread_data->activation);
 	}
 
 	FOR_RANGE(i, 0, THREAD_COUNT)

@@ -70,7 +70,7 @@ struct Map
 struct State;
 struct ThreadData
 {
-	SDL_sem*     semaphore;
+	SDL_sem*     activation;
 	State*       state;
 	i32          new_boids_offset;
 	i32          new_boids_count;
