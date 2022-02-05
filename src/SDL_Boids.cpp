@@ -84,14 +84,44 @@ void DrawCircle(SDL_Renderer* renderer, i32 centerX, i32 centerY, i32 radius)
 	}
 }
 
-IndexBufferNode* pop_from_available_index_buffer_node(Map* map)
+IndexBufferNode* allocate_index_buffer_node(Map* map)
 {
-	ASSERT(map->available_index_buffer_node);
+	if (map->available_index_buffer_node)
+	{
+		IndexBufferNode* node = map->available_index_buffer_node;
+		map->available_index_buffer_node = map->available_index_buffer_node->next_node;
+		return node;
+	}
+	else
+	{
+		return PUSH(&map->arena, IndexBufferNode);
+	}
+}
 
-	IndexBufferNode* node = map->available_index_buffer_node;
-	map->available_index_buffer_node = map->available_index_buffer_node->next_node;
+void release_index_buffer_node(IndexBufferNode* node, Map* map)
+{
+	node->next_node                  = map->available_index_buffer_node;
+	map->available_index_buffer_node = node;
+}
 
-	return node;
+ChunkNode* allocate_chunk_node(Map* map)
+{
+	if (map->available_chunk_node)
+	{
+		ChunkNode* node = map->available_chunk_node;
+		map->available_chunk_node = map->available_chunk_node->next_node;
+		return node;
+	}
+	else
+	{
+		return PUSH(&map->arena, ChunkNode);
+	}
+}
+
+void release_chunk_node(ChunkNode* node, Map* map)
+{
+	node->next_node           = map->available_chunk_node;
+	map->available_chunk_node = node;
 }
 
 ChunkNode** find_chunk_node(Map* map, i32 x, i32 y)
@@ -119,7 +149,7 @@ void push_index_into_map(Map* map, i32 x, i32 y, i32 index)
 
 		if ((*chunk_node)->index_buffer_node->index_count >= ARRAY_CAPACITY(IndexBufferNode, index_buffer))
 		{
-			IndexBufferNode* new_head = pop_from_available_index_buffer_node(map);
+			IndexBufferNode* new_head = allocate_index_buffer_node(map);
 			new_head->index_count            = 0;
 			new_head->next_node              = (*chunk_node)->index_buffer_node;
 			(*chunk_node)->index_buffer_node = new_head;
@@ -131,14 +161,10 @@ void push_index_into_map(Map* map, i32 x, i32 y, i32 index)
 	}
 	else
 	{
-		ASSERT(map->available_chunk_node);
-
-		*chunk_node               = map->available_chunk_node;
-		map->available_chunk_node = map->available_chunk_node->next_node;
-
+		*chunk_node = allocate_chunk_node(map);
 		(*chunk_node)->x                                  = x;
 		(*chunk_node)->y                                  = y;
-		(*chunk_node)->index_buffer_node                  = pop_from_available_index_buffer_node(map);
+		(*chunk_node)->index_buffer_node                  = allocate_index_buffer_node(map);
 		(*chunk_node)->index_buffer_node->index_buffer[0] = index;
 		(*chunk_node)->index_buffer_node->index_count     = 1;
 		(*chunk_node)->index_buffer_node->next_node       = 0;
@@ -175,9 +201,8 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 				else
 				{
 					IndexBufferNode* next_node = (*current_index_buffer_node)->next_node;
-					(*current_index_buffer_node)->next_node = map->available_index_buffer_node;
-					map->available_index_buffer_node        = *current_index_buffer_node;
-					*current_index_buffer_node              = next_node;
+					release_index_buffer_node(*current_index_buffer_node, map);
+					*current_index_buffer_node = next_node;
 				}
 
 				break;
@@ -192,9 +217,8 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 	if (!(*chunk_node)->index_buffer_node)
 	{
 		ChunkNode* next_node = (*chunk_node)->next_node;
-		(*chunk_node)->next_node  = map->available_chunk_node;
-		map->available_chunk_node = *chunk_node;
-		*chunk_node               = next_node;
+		release_chunk_node(*chunk_node, map);
+		*chunk_node = next_node;
 	}
 }
 
@@ -293,7 +317,7 @@ int helper_thread_work(void* void_data)
 
 	while (SDL_SemWait(data->activation), !data->state->helper_threads_should_exit)
 	{
-		update_boid_directions(data->state->old_boids, data->state->new_boids, data->new_boids_offset, BASE_WORKLOAD_FOR_HELPER_THREADS, &data->state->map);
+		update_boid_directions(data->state->map.old_boids, data->state->map.new_boids, data->new_boids_offset, BASE_WORKLOAD_FOR_HELPER_THREADS, &data->state->map);
 		SDL_SemPost(data->state->completed_work);
 	}
 
@@ -323,31 +347,19 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		state->seed = 0xBEEFFACE;
 
-		state->general_arena.base = program->memory          + sizeof(State);
-		state->general_arena.size = program->memory_capacity - sizeof(State);
-		state->general_arena.used = 0;
-
-		state->map.available_index_buffer_node = PUSH(&state->general_arena, IndexBufferNode, AVAILABLE_INDEX_BUFFER_NODE_COUNT);
-		FOR_RANGE(i, 0, AVAILABLE_INDEX_BUFFER_NODE_COUNT - 1)
-		{
-			state->map.available_index_buffer_node[i].next_node = &state->map.available_index_buffer_node[i + 1];
-		}
-		state->map.available_index_buffer_node[AVAILABLE_INDEX_BUFFER_NODE_COUNT - 1].next_node = 0;
-
-		state->map.available_chunk_node = PUSH(&state->general_arena, ChunkNode, AVAILABLE_CHUNK_NODE_COUNT);
-		FOR_RANGE(i, 0, AVAILABLE_CHUNK_NODE_COUNT - 1)
-		{
-			state->map.available_chunk_node[i].next_node = &state->map.available_chunk_node[i + 1];
-		}
-		state->map.available_chunk_node[AVAILABLE_CHUNK_NODE_COUNT - 1].next_node = 0;
+		state->map.arena.base                  = program->memory          + sizeof(State);
+		state->map.arena.size                  = program->memory_capacity - sizeof(State);
+		state->map.arena.used                  = 0;
+		state->map.available_index_buffer_node = 0;
+		state->map.available_chunk_node        = 0;
 
 		FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
 		{
 			*chunk_node = 0;
 		}
 
-		state->old_boids = PUSH(&state->general_arena, Boid, BOID_AMOUNT);
-		FOR_ELEMS(old_boid, state->old_boids, BOID_AMOUNT)
+		state->map.old_boids = PUSH(&state->map.arena, Boid, BOID_AMOUNT);
+		FOR_ELEMS(old_boid, state->map.old_boids, BOID_AMOUNT)
 		{
 			old_boid->direction = polar(rand_range(&state->seed, 0.0f, TAU));
 			old_boid->position  = { rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_WIDTH) / PIXELS_PER_METER), rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER) };
@@ -355,7 +367,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			push_index_into_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), old_boid_index);
 		}
 
-		state->new_boids = PUSH(&state->general_arena, Boid, BOID_AMOUNT);
+		state->map.new_boids = PUSH(&state->map.arena, Boid, BOID_AMOUNT);
 	}
 
 	//
@@ -440,16 +452,16 @@ extern "C" PROTOTYPE_UPDATE(update)
 		SDL_SemPost(data->activation);
 	}
 
-	update_boid_directions(state->old_boids, state->new_boids, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD, &state->map);
+	update_boid_directions(state->map.old_boids, state->map.new_boids, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD, &state->map);
 
 	FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
 	{
 		SDL_SemWait(state->completed_work);
 	}
 
-	FOR_ELEMS(new_boid, state->new_boids, BOID_AMOUNT)
+	FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
 	{
-		Boid* old_boid = &state->old_boids[new_boid_index];
+		Boid* old_boid = &state->map.old_boids[new_boid_index];
 
 		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * program->delta_seconds;
 
@@ -480,5 +492,5 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	SDL_RenderPresent(program->renderer);
 
-	SWAP(state->new_boids, state->old_boids);
+	SWAP(state->map.new_boids, state->map.old_boids);
 }

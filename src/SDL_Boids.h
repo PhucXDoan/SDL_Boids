@@ -15,8 +15,6 @@
 constexpr i32 PIXELS_PER_METER                  = 50;
 constexpr f32 BOID_VELOCITY                     = 1.5f;
 constexpr i32 BOID_AMOUNT                       = 4096;
-constexpr i32 AVAILABLE_INDEX_BUFFER_NODE_COUNT = 512;
-constexpr i32 AVAILABLE_CHUNK_NODE_COUNT        = 512;
 constexpr f32 BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
 constexpr f32 MINIMUM_RADIUS                    = 0.005f;
 constexpr f32 SEPARATION_WEIGHT                 = 8.0f;
@@ -66,9 +64,12 @@ struct ChunkNode
 
 struct Map
 {
+	memarena         arena;
 	IndexBufferNode* available_index_buffer_node;
 	ChunkNode*       available_chunk_node;
 	ChunkNode*       chunk_node_hash_table[256];
+	Boid*            old_boids;
+	Boid*            new_boids;
 };
 
 struct State;
@@ -86,8 +87,5 @@ struct State
 	SDL_sem*         completed_work;
 	HelperThreadData helper_thread_datas[HELPER_THREAD_COUNT];
 	u64              seed;
-	memarena         general_arena;
 	Map              map;
-	Boid*            old_boids;
-	Boid*            new_boids;
 };
