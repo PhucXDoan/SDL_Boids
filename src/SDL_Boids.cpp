@@ -98,32 +98,6 @@ IndexBufferNode* allocate_index_buffer_node(Map* map)
 	}
 }
 
-void release_index_buffer_node(IndexBufferNode* node, Map* map)
-{
-	node->next_node                  = map->available_index_buffer_node;
-	map->available_index_buffer_node = node;
-}
-
-ChunkNode* allocate_chunk_node(Map* map)
-{
-	if (map->available_chunk_node)
-	{
-		ChunkNode* node = map->available_chunk_node;
-		map->available_chunk_node = map->available_chunk_node->next_node;
-		return node;
-	}
-	else
-	{
-		return PUSH(&map->arena, ChunkNode);
-	}
-}
-
-void release_chunk_node(ChunkNode* node, Map* map)
-{
-	node->next_node           = map->available_chunk_node;
-	map->available_chunk_node = node;
-}
-
 ChunkNode** find_chunk_node(Map* map, i32 x, i32 y)
 {
 	// @TODO@ Better hash function.
@@ -161,7 +135,16 @@ void push_index_into_map(Map* map, i32 x, i32 y, i32 index)
 	}
 	else
 	{
-		*chunk_node = allocate_chunk_node(map);
+		if (map->available_chunk_node)
+		{
+			*chunk_node = map->available_chunk_node;
+			map->available_chunk_node = map->available_chunk_node->next_node;
+		}
+		else
+		{
+			*chunk_node = PUSH(&map->arena, ChunkNode);
+		}
+
 		(*chunk_node)->x                                  = x;
 		(*chunk_node)->y                                  = y;
 		(*chunk_node)->index_buffer_node                  = allocate_index_buffer_node(map);
@@ -201,7 +184,8 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 				else
 				{
 					IndexBufferNode* next_node = (*current_index_buffer_node)->next_node;
-					release_index_buffer_node(*current_index_buffer_node, map);
+					(*current_index_buffer_node)->next_node = map->available_index_buffer_node;
+					map->available_index_buffer_node        = *current_index_buffer_node;
 					*current_index_buffer_node = next_node;
 				}
 
@@ -217,7 +201,8 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 	if (!(*chunk_node)->index_buffer_node)
 	{
 		ChunkNode* next_node = (*chunk_node)->next_node;
-		release_chunk_node(*chunk_node, map);
+		(*chunk_node)->next_node  = map->available_chunk_node;
+		map->available_chunk_node = *chunk_node;
 		*chunk_node = next_node;
 	}
 }
