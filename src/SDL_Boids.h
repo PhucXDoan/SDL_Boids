@@ -78,7 +78,7 @@ struct ThreadData
 
 struct State
 {
-	SDL_atomic_t terminated;
+	bool32       threads_should_exit;
 	SDL_sem*     completed_work;
 	ThreadData   thread_datas[THREAD_COUNT];
 	SDL_Thread*  threads[THREAD_COUNT];

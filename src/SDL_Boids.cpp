@@ -235,16 +235,18 @@ vf2 calc_boid_direction(i32 boid_index, Boid* boids, Map* map)
 				{
 					FOR_ELEMS(other_boid_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
 					{
-						vf2 to_other          = boids[*other_boid_index].position - boids[boid_index].position;
-						f32 distance_to_other = norm(to_other);
-
-						// @TODO@ Remove epsilon?
-						if (*other_boid_index != boid_index && MINIMUM_RADIUS < distance_to_other && distance_to_other < BOID_NEIGHBORHOOD_RADIUS)
+						if (*other_boid_index != boid_index)
 						{
-							++neighboring_boid_count;
-							average_neighboring_boid_repulsion    -= to_other * (BOID_NEIGHBORHOOD_RADIUS / distance_to_other);
-							average_neighboring_boid_movement     += boids[*other_boid_index].direction;
-							average_neighboring_boid_rel_position += to_other;
+							vf2 to_other          = boids[*other_boid_index].position - boids[boid_index].position;
+							f32 distance_to_other = norm(to_other);
+
+							if (IN_RANGE(distance_to_other, MINIMUM_RADIUS, BOID_NEIGHBORHOOD_RADIUS))
+							{
+								++neighboring_boid_count;
+								average_neighboring_boid_repulsion    -= to_other * BOID_NEIGHBORHOOD_RADIUS / distance_to_other;
+								average_neighboring_boid_movement     += boids[*other_boid_index].direction;
+								average_neighboring_boid_rel_position += to_other;
+							}
 						}
 					}
 
@@ -288,19 +290,14 @@ int thread_work(void* void_data)
 {
 	ThreadData* data = reinterpret_cast<ThreadData*>(void_data);
 
-	while (!SDL_AtomicGet(&data->state->terminated))
+	while (SDL_SemWait(data->semaphore), !data->state->threads_should_exit) // @TODO@ Comman operator (interrobang!?).
 	{
-		SDL_SemWait(data->semaphore);
-
-		if (!SDL_AtomicGet(&data->state->terminated))
+		FOR_ELEMS(new_boid, data->state->new_boids + data->new_boids_offset, data->new_boids_count)
 		{
-			FOR_ELEMS(new_boid, data->state->new_boids + data->new_boids_offset, data->new_boids_count)
-			{
-				new_boid->direction = calc_boid_direction(new_boid_index + data->new_boids_offset, data->state->old_boids, &data->state->map);
-			}
-
-			SDL_SemPost(data->state->completed_work);
+			new_boid->direction = calc_boid_direction(new_boid_index + data->new_boids_offset, data->state->old_boids, &data->state->map);
 		}
+
+		SDL_SemPost(data->state->completed_work);
 	}
 
 	return 0;
@@ -314,8 +311,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 	{
 		program->is_initialized = true;
 
-		SDL_AtomicSet(&state->terminated, false);
-		state->completed_work = SDL_CreateSemaphore(0);
+		state->threads_should_exit = false;
+		state->completed_work      = SDL_CreateSemaphore(0);
 
 		FOR_ELEMS(thread, state->threads)
 		{
@@ -386,9 +383,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 		{
 			case SDL_QUIT:
 			{
-				program->is_running = false;
-
-				SDL_AtomicSet(&state->terminated, true);
+				state->threads_should_exit = true;
 
 				FOR_ELEMS(thread, state->threads)
 				{
@@ -400,6 +395,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 				}
 
 				SDL_DestroySemaphore(state->completed_work);
+
+				program->is_running = false;
 				return;
 			} break;
 		}
