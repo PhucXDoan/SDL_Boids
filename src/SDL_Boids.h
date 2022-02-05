@@ -74,6 +74,7 @@ struct ThreadData
 	State*       state;
 	i32          new_boids_offset;
 	i32          new_boids_count;
+	SDL_Thread*  thread;
 };
 
 struct State
@@ -81,7 +82,6 @@ struct State
 	bool32       threads_should_exit;
 	SDL_sem*     completed_work;
 	ThreadData   thread_datas[THREAD_COUNT];
-	SDL_Thread*  threads[THREAD_COUNT];
 	u64          seed;
 	memarena     general_arena;
 	Map          map;

@@ -314,26 +314,25 @@ extern "C" PROTOTYPE_UPDATE(update)
 		state->threads_should_exit = false;
 		state->completed_work      = SDL_CreateSemaphore(0);
 
-		FOR_ELEMS(thread, state->threads)
+		FOR_ELEMS(thread_data, state->thread_datas)
 		{
 			i32 base_boid_workload = pxd_floor(static_cast<f32>(BOID_AMOUNT) / THREAD_COUNT);
 
-			ThreadData* data = &state->thread_datas[thread_index];
-			data->semaphore        = SDL_CreateSemaphore(0);
-			data->state            = state;
-			data->new_boids_offset = base_boid_workload * thread_index;
-			if (thread_index == ARRAY_CAPACITY(state->threads) - 1) // @TODO@ Be more confident about this workload separation.
+			thread_data->semaphore        = SDL_CreateSemaphore(0);
+			thread_data->state            = state;
+			thread_data->new_boids_offset = base_boid_workload * thread_data_index;
+			if (thread_data_index == ARRAY_CAPACITY(state->thread_datas) - 1) // @TODO@ Be more confident about this workload separation.
 			{
-				data->new_boids_count = BOID_AMOUNT - base_boid_workload * (THREAD_COUNT - 1);
+				thread_data->new_boids_count = BOID_AMOUNT - base_boid_workload * (THREAD_COUNT - 1);
 			}
 			else
 			{
-				data->new_boids_count = base_boid_workload;
+				thread_data->new_boids_count = base_boid_workload;
 			}
 
-			*thread = SDL_CreateThread(thread_work, "`thread_work`", reinterpret_cast<void*>(data));
+			thread_data->thread = SDL_CreateThread(thread_work, "`thread_work`", reinterpret_cast<void*>(thread_data));
 
-			DEBUG_printf("Created thread (#%d)\n", thread_index);
+			DEBUG_printf("Created thread (#%d)\n", thread_data_index);
 		}
 
 		state->seed = 0xBEEFFACE;
@@ -385,13 +384,12 @@ extern "C" PROTOTYPE_UPDATE(update)
 			{
 				state->threads_should_exit = true;
 
-				FOR_ELEMS(thread, state->threads)
+				FOR_ELEMS(thread_data, state->thread_datas)
 				{
-					ThreadData* data = &state->thread_datas[thread_index];
-					SDL_SemPost(data->semaphore);
-					SDL_WaitThread(*thread, 0);
-					SDL_DestroySemaphore(data->semaphore);
-					DEBUG_printf("Freed thread (#%d)\n", thread_index);
+					SDL_SemPost(thread_data->semaphore);
+					SDL_WaitThread(thread_data->thread, 0);
+					SDL_DestroySemaphore(thread_data->semaphore);
+					DEBUG_printf("Freed thread (#%d)\n", thread_data_index);
 				}
 
 				SDL_DestroySemaphore(state->completed_work);
