@@ -226,8 +226,8 @@ vf2 slerp(vf2 a, vf2 b, f32 t)
 	f32 angle    = acosf(CLAMP(dot_prod, -1.0f, 1.0f));
 
 	return
-		fabs(angle) > 1.0f // @TODO@ What should the epsilon be here?
-			? (sinf((1.0f - time) * angle) * a + sinf(time * angle) * b) / sinf(angle)
+		fabs(angle) > 0.1f // @TODO@ What should the epsilon be here?
+			? normalize((sinf((1.0f - time) * angle) * a + sinf(time * angle) * b) / sinf(angle))
 			: a;
 }
 
