@@ -219,14 +219,14 @@ f32 rand_range(u64* seed, f32 min, f32 max)
 	return (rand_u64(seed) % 0xFFFFFFFF / static_cast<f32>(0xFFFFFFFF)) * (max - min);
 }
 
-vf2 slerp(vf2 a, vf2 b, f32 t)
+vf2 slerp(vf2 a, vf2 b, f32 step) // @TODO@ SPEEEEEEEEEEEEEEDD!!
 {
-	f32 time     = CLAMP(t, 0.0f, 1.0f);
 	f32 dot_prod = dot(a, b);
 	f32 angle    = acosf(CLAMP(dot_prod, -1.0f, 1.0f));
+	f32 time     = angle < step ? 1.0f : step / angle;
 
 	return
-		fabs(angle) > 0.1f // @TODO@ What should the epsilon be here?
+		angle > 0.1f // @TODO@ What should the epsilon be here?
 			? normalize((sinf((1.0f - time) * angle) * a + sinf(time * angle) * b) / sinf(angle))
 			: a;
 }
@@ -296,13 +296,13 @@ void update_boid_directions(Boid* old_boids, Boid* new_boids, i32 starting_index
 			{
 				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
 				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
-			};
+			} * BORDER_WEIGHT;
 
 		f32 desired_movement_distance = norm(desired_movement);
 
 		new_boids[boid_index].direction =
 			desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE
-				? slerp(old_boid->direction, desired_movement / desired_movement_distance, SIMULATION_TIME_STEP_SECONDS) // @TODO@ Have angular velocity? Replaces `DRAG_WEIGHT`.
+				? slerp(old_boid->direction, desired_movement / desired_movement_distance, ANGULAR_VELOCITY * SIMULATION_TIME_STEP_SECONDS)
 				: old_boid->direction;
 	}
 }
