@@ -219,6 +219,18 @@ f32 rand_range(u64* seed, f32 min, f32 max)
 	return (rand_u64(seed) % 0xFFFFFFFF / static_cast<f32>(0xFFFFFFFF)) * (max - min);
 }
 
+vf2 slerp(vf2 a, vf2 b, f32 t)
+{
+	f32 time     = CLAMP(t, 0.0f, 1.0f);
+	f32 dot_prod = dot(a, b);
+	f32 angle    = acosf(CLAMP(dot_prod, -1.0f, 1.0f));
+
+	return
+		fabs(angle) > 1.0f // @TODO@ What should the epsilon be here?
+			? (sinf((1.0f - time) * angle) * a + sinf(time * angle) * b) / sinf(angle)
+			: a;
+}
+
 void update_boid_directions(Boid* old_boids, Boid* new_boids, i32 starting_index, i32 count, Map* map)
 {
 	FOR_RANGE(boid_index, starting_index, starting_index + count)
@@ -284,14 +296,13 @@ void update_boid_directions(Boid* old_boids, Boid* new_boids, i32 starting_index
 			{
 				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
 				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
-			} * BORDER_WEIGHT +
-			old_boid->direction * DRAG_WEIGHT;
+			};
 
 		f32 desired_movement_distance = norm(desired_movement);
 
 		new_boids[boid_index].direction =
 			desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE
-				? desired_movement / desired_movement_distance
+				? slerp(old_boid->direction, desired_movement / desired_movement_distance, SIMULATION_TIME_STEP_SECONDS) // @TODO@ Have angular velocity? Replaces `DRAG_WEIGHT`.
 				: old_boid->direction;
 	}
 }
@@ -448,7 +459,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 	{
 		Boid* old_boid = &state->map.old_boids[new_boid_index];
 
-		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * program->delta_seconds;
+		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * SIMULATION_TIME_STEP_SECONDS;
 
 		if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
 		{
@@ -470,6 +481,9 @@ extern "C" PROTOTYPE_UPDATE(update)
 					static_cast<i32>((BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y) * BOID_SCALAR + offset.x),
 					WINDOW_HEIGHT - 1 - static_cast<i32>((BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x) * BOID_SCALAR + offset.y)
 				};
+
+			ASSERT(point->x == point->x);
+			ASSERT(point->y == point->y);
 		}
 
 		SDL_RenderDrawLines(program->renderer, points, ARRAY_CAPACITY(points));

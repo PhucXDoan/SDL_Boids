@@ -50,6 +50,7 @@ enum struct NAME : TYPE
 #include <windows.h>
 #include <stdio.h>
 #define DEBUG_printf(FSTR, ...) do { char TEMP_DEBUG_PRINTF_##__LINE__[512]; sprintf_s(TEMP_DEBUG_PRINTF_##__LINE__, sizeof(TEMP_DEBUG_PRINTF_##__LINE__), (FSTR), __VA_ARGS__); OutputDebugStringA(TEMP_DEBUG_PRINTF_##__LINE__); } while (false)
+#define DEBUG_NOP               do {} while (false)
 #endif
 
 typedef uint8_t*    byteptr;
