@@ -14,12 +14,12 @@ constexpr i32     WINDOW_HEIGHT              = 720;
 constexpr strlit  PROGRAM_DLL_FILE_PATH      = "W:/build/SDL_Boids.dll";
 constexpr strlit  PROGRAM_DLL_TEMP_FILE_PATH = "W:/build/SDL_Boids.dll.temp";
 constexpr strlit  LOCK_FILE_PATH             = "W:/build/LOCK.tmp";
+constexpr f32     UPDATE_HERTZ               = 1.0f / 30.0f;
 
 struct Program
 {
 	bool32        is_running;
 	bool32        is_initialized;
-	f32           delta_seconds;
 	SDL_Renderer* renderer;
 	byteptr       memory;
 	memsize       memory_capacity;
