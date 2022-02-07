@@ -284,6 +284,24 @@ int helper_thread_work(void* void_data)
 	return 0;
 }
 
+void render_line(SDL_Renderer* renderer, vf2 start, vf2 end)
+{
+	SDL_RenderDrawLine(renderer, static_cast<i32>(start.x), static_cast<i32>(WINDOW_HEIGHT - 1 - start.y), static_cast<i32>(end.x), static_cast<i32>(WINDOW_HEIGHT - 1 - end.y));
+}
+
+void render_lines(SDL_Renderer* renderer, vf2* points, i32 points_capacity)
+{
+	FOR_ELEMS(point, points, points_capacity - 1)
+	{
+		render_line(renderer, *point, points[point_index + 1]);
+	}
+}
+
+void render_fill_rect(SDL_Renderer* renderer, vf2 bottom_left, vf2 dimensions)
+{
+	SDL_Rect rect = { static_cast<i32>(bottom_left.x), static_cast<i32>(WINDOW_HEIGHT - 1 - bottom_left.y), static_cast<i32>(dimensions.x), static_cast<i32>(dimensions.y) };
+	SDL_RenderFillRect(renderer, &rect);
+}
 
 extern "C" PROTOTYPE_UPDATE(update)
 {
@@ -401,8 +419,12 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 			SDL_SetRenderDrawColor(program->renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
 
-			SDL_Rect rect = { current_chunk_node->x * PIXELS_PER_METER, WINDOW_HEIGHT - 1 - (current_chunk_node->y + 1) * PIXELS_PER_METER, PIXELS_PER_METER, PIXELS_PER_METER };
-			SDL_RenderFillRect(program->renderer, &rect);
+			render_fill_rect
+			(
+				program->renderer,
+				vf2 ( current_chunk_node->x * PIXELS_PER_METER, (current_chunk_node->y + 1) * PIXELS_PER_METER ),
+				vf2 ( PIXELS_PER_METER, PIXELS_PER_METER )
+			);
 		}
 	}
 
@@ -413,14 +435,12 @@ extern "C" PROTOTYPE_UPDATE(update)
 	SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
 	FOR_RANGE(i, 0, WINDOW_WIDTH / PIXELS_PER_METER + 1)
 	{
-		i32 x = i * PIXELS_PER_METER;
-		SDL_RenderDrawLine(program->renderer, x, 0, x, WINDOW_HEIGHT);
+		render_line(program->renderer, vf2 ( i * PIXELS_PER_METER, 0.0f ), vf2 ( i * PIXELS_PER_METER, WINDOW_HEIGHT ));
 	}
 
 	FOR_RANGE(i, 0, WINDOW_HEIGHT / PIXELS_PER_METER + 1)
 	{
-		i32 y = WINDOW_HEIGHT - 1 - i * PIXELS_PER_METER;
-		SDL_RenderDrawLine(program->renderer, 0, y, WINDOW_WIDTH, y);
+		render_line(program->renderer, vf2 ( 0.0f, i * PIXELS_PER_METER ), vf2 ( WINDOW_WIDTH, i * PIXELS_PER_METER ));
 	}
 
 	//
@@ -459,20 +479,18 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		vf2 offset = new_boid->position * static_cast<f32>(PIXELS_PER_METER);
 
-		SDL_Point points[ARRAY_CAPACITY(BOID_VERTICES)];
+		vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
 		FOR_ELEMS(point, points)
 		{
 			*point =
+				vf2
 				{
-					static_cast<i32>((BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y) * BOID_SCALAR + offset.x),
-					WINDOW_HEIGHT - 1 - static_cast<i32>((BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x) * BOID_SCALAR + offset.y)
-				};
-
-			ASSERT(point->x == point->x);
-			ASSERT(point->y == point->y);
+					BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
+					BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
+				} * BOID_SCALAR + offset;
 		}
 
-		SDL_RenderDrawLines(program->renderer, points, ARRAY_CAPACITY(points));
+		render_lines(program->renderer, points, ARRAY_CAPACITY(points));
 	}
 
 	SDL_RenderPresent(program->renderer);

@@ -46,6 +46,10 @@ inline NAME operator<<=(NAME& a, i32  n) { return a = static_cast<NAME>( (+a) <<
 inline NAME operator>>=(NAME& a, i32  n) { return a = static_cast<NAME>( (+a) >> n  ); }\
 enum struct NAME : TYPE
 
+#define vf2(X, Y      ) (vf2 { static_cast<f32>(X), static_cast<f32>(Y)                                           })
+#define vf3(X, Y, Z   ) (vf2 { static_cast<f32>(X), static_cast<f32>(Y), static_cast<f32>(Z)                      })
+#define vf4(X, Y, Z, W) (vf2 { static_cast<f32>(X), static_cast<f32>(Y), static_cast<f32>(Z), static_cast<f32>(W) })
+
 #if DEBUG
 #include <windows.h>
 #include <stdio.h>
