@@ -321,6 +321,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 			data->new_boids_offset = BASE_WORKLOAD_FOR_HELPER_THREADS * data_index;
 			data->helper_thread    = SDL_CreateThread(helper_thread_work, "`helper_thread_work`", reinterpret_cast<void*>(data));
 
+			// @TODO@ There seems to be a non-deterministic memory reading error here associated with hotloading!!
+
 			DEBUG_printf("Created helper thread (#%d)\n", data_index);
 		}
 
@@ -437,7 +439,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 	state->camera_velocity  = (+state->wasd ? normalize(state->wasd) : state->wasd) * CAMERA_SPEED;
 	state->camera_position += state->camera_velocity * UPDATE_FREQUENCY; // @TODO@ Should `UPDATE_FREQUENCY` be used here or another clock?
 
-	state->camera_zoom += state->arrow_keys.y * ZOOM_CHANGE_SPEED;
+	state->camera_zoom += state->camera_zoom * state->arrow_keys.y * ZOOM_CHANGE_SPEED;
 	state->camera_zoom = CLAMP(state->camera_zoom, ZOOM_MINIMUM_SCALE_FACTOR, ZOOM_MAXIMUM_SCALE_FACTOR);
 
 	state->simulation_time_step += state->arrow_keys.x * TIME_STEP_CHANGE_SPEED;
