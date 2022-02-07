@@ -48,42 +48,6 @@ inline f32 dot(vf2 u, vf2 v)
 	return u.x * v.x + u.y * v.y;
 }
 
-void DrawCircle(SDL_Renderer* renderer, i32 centerX, i32 centerY, i32 radius)
-{
-	i32 diameter = radius * 2;
-	i32 x        = radius - 1;
-	i32 y        = 0;
-	i32 tx       = 1;
-	i32 ty       = 1;
-	i32 error    = tx - diameter;
-
-	while (x >= y)
-	{
-		SDL_RenderDrawPoint(renderer, centerX + x, centerY - y);
-		SDL_RenderDrawPoint(renderer, centerX + x, centerY + y);
-		SDL_RenderDrawPoint(renderer, centerX - x, centerY - y);
-		SDL_RenderDrawPoint(renderer, centerX - x, centerY + y);
-		SDL_RenderDrawPoint(renderer, centerX + y, centerY - x);
-		SDL_RenderDrawPoint(renderer, centerX + y, centerY + x);
-		SDL_RenderDrawPoint(renderer, centerX - y, centerY - x);
-		SDL_RenderDrawPoint(renderer, centerX - y, centerY + x);
-
-		if (error <= 0)
-		{
-			++y;
-			error += ty;
-			ty += 2;
-		}
-
-		if (error > 0)
-		{
-			--x;
-			tx += 2;
-			error += tx - diameter;
-		}
-	}
-}
-
 IndexBufferNode* allocate_index_buffer_node(Map* map)
 {
 	if (map->available_index_buffer_node)
@@ -208,13 +172,13 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 }
 
 // @TODO@ Make this robust.
-u64 rand_u64(u64* seed)
+inline u64 rand_u64(u64* seed)
 {
 	*seed += 36133;
 	return *seed * *seed * 20661081381 + *seed * 53660987 - 5534096 / *seed;
 }
 
-f32 rand_range(u64* seed, f32 min, f32 max)
+inline f32 rand_range(u64* seed, f32 min, f32 max)
 {
 	return (rand_u64(seed) % 0xFFFFFFFF / static_cast<f32>(0xFFFFFFFF)) * (max - min);
 }
@@ -319,6 +283,7 @@ int helper_thread_work(void* void_data)
 
 	return 0;
 }
+
 
 extern "C" PROTOTYPE_UPDATE(update)
 {
