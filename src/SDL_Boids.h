@@ -28,8 +28,8 @@ constexpr f32 BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
 constexpr f32 HEATMAP_SENSITIVITY               = 8.0f;
 constexpr f32 BOID_SCALAR                       = 0.75f;
 constexpr i32 HELPER_THREAD_COUNT               = 4;
-constexpr f32 SIMULATION_TIME_STEP              = UPDATE_HERTZ;
 constexpr f32 CAMERA_SPEED                      = 6.0f;
+constexpr f32 TIME_STEP_CHANGE_SPEED            = 0.001f;
 constexpr vf2 BOID_VERTICES[]                   =
 	{
 		{  5.0f,  0.0f },
@@ -91,6 +91,8 @@ struct State
 	u64              seed;
 	Map              map;
 	vf2              wasd;
+	vf2              arrow_keys;
 	vf2              camera_velocity;
 	vf2              camera_position;
+	f32              simulation_time_step;
 };

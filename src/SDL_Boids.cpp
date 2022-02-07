@@ -195,11 +195,11 @@ vf2 slerp(vf2 a, vf2 b, f32 step) // @TODO@ SPEEEEEEEEEEEEEEDD!!
 			: a;
 }
 
-void update_boid_directions(Boid* old_boids, Boid* new_boids, i32 starting_index, i32 count, Map* map)
+void update_boid_directions(State* state, i32 starting_index, i32 count)
 {
 	FOR_RANGE(boid_index, starting_index, starting_index + count)
 	{
-		Boid* old_boid = &old_boids[boid_index];
+		Boid* old_boid = &state->map.old_boids[boid_index];
 
 		vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
 		vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
@@ -210,7 +210,7 @@ void update_boid_directions(Boid* old_boids, Boid* new_boids, i32 starting_index
 		{
 			FOR_RANGE(dx, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
 			{
-				ChunkNode** chunk_node = find_chunk_node(map, pxd_floor(old_boid->position.x) + dx, pxd_floor(old_boid->position.y) + dy);
+				ChunkNode** chunk_node = find_chunk_node(&state->map, pxd_floor(old_boid->position.x) + dx, pxd_floor(old_boid->position.y) + dy);
 
 				ASSERT(chunk_node);
 
@@ -226,14 +226,14 @@ void update_boid_directions(Boid* old_boids, Boid* new_boids, i32 starting_index
 						{
 							if (*other_boid_index != boid_index)
 							{
-								vf2 to_other          = old_boids[*other_boid_index].position - old_boid->position;
+								vf2 to_other          = state->map.old_boids[*other_boid_index].position - old_boid->position;
 								f32 distance_to_other = norm(to_other);
 
 								if (IN_RANGE(distance_to_other, MINIMUM_RADIUS, BOID_NEIGHBORHOOD_RADIUS))
 								{
 									++neighboring_boid_count;
 									average_neighboring_boid_repulsion    -= to_other * BOID_NEIGHBORHOOD_RADIUS / distance_to_other;
-									average_neighboring_boid_movement     += old_boids[*other_boid_index].direction;
+									average_neighboring_boid_movement     += state->map.old_boids[*other_boid_index].direction;
 									average_neighboring_boid_rel_position += to_other;
 								}
 							}
@@ -264,9 +264,9 @@ void update_boid_directions(Boid* old_boids, Boid* new_boids, i32 starting_index
 
 		f32 desired_movement_distance = norm(desired_movement);
 
-		new_boids[boid_index].direction =
+		state->map.new_boids[boid_index].direction =
 			desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE
-				? slerp(old_boid->direction, desired_movement / desired_movement_distance, ANGULAR_VELOCITY * SIMULATION_TIME_STEP)
+				? slerp(old_boid->direction, desired_movement / desired_movement_distance, ANGULAR_VELOCITY * state->simulation_time_step)
 				: old_boid->direction;
 	}
 }
@@ -277,7 +277,7 @@ int helper_thread_work(void* void_data)
 
 	while (SDL_SemWait(data->activation), !data->state->helper_threads_should_exit)
 	{
-		update_boid_directions(data->state->map.old_boids, data->state->map.new_boids, data->new_boids_offset, BASE_WORKLOAD_FOR_HELPER_THREADS, &data->state->map);
+		update_boid_directions(data->state, data->new_boids_offset, BASE_WORKLOAD_FOR_HELPER_THREADS);
 		SDL_SemPost(data->state->completed_work);
 	}
 
@@ -348,9 +348,10 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		state->map.new_boids = PUSH(&state->map.arena, Boid, BOID_AMOUNT);
 
-		state->wasd            = {};
-		state->camera_velocity = { 0.0f, 0.0f };
-		state->camera_position = { 0.0f, 0.0f };
+		state->wasd                 = {};
+		state->camera_velocity      = { 0.0f, 0.0f };
+		state->camera_position      = { 0.0f, 0.0f };
+		state->simulation_time_step = UPDATE_FREQUENCY;
 	}
 
 	//
@@ -385,20 +386,58 @@ extern "C" PROTOTYPE_UPDATE(update)
 			{
 				if (!event.key.repeat)
 				{
-					state->wasd +=
-						(
-							event.key.keysym.sym == SDLK_a ? vf2 { -1.0f,  0.0f } :
-							event.key.keysym.sym == SDLK_d ? vf2 {  1.0f,  0.0f } :
-							event.key.keysym.sym == SDLK_s ? vf2 {  0.0f, -1.0f } :
-							event.key.keysym.sym == SDLK_w ? vf2 {  0.0f,  1.0f } : vf2 { 0.0f, 0.0f }
-						) * (event.key.state == SDL_PRESSED ? 1.0f : -1.0f);
+					switch (event.key.keysym.sym)
+					{
+						case SDLK_a:
+						{
+							state->wasd += vf2 { -1.0f,  0.0f } * (event.key.state == SDL_PRESSED ? 1.0f : -1.0f);
+						} break;
+
+						case SDLK_d:
+						{
+							state->wasd += vf2 {  1.0f,  0.0f } * (event.key.state == SDL_PRESSED ? 1.0f : -1.0f);
+						} break;
+
+						case SDLK_s:
+						{
+							state->wasd += vf2 {  0.0f, -1.0f } * (event.key.state == SDL_PRESSED ? 1.0f : -1.0f);
+						} break;
+
+						case SDLK_w:
+						{
+							state->wasd += vf2 {  0.0f,  1.0f } * (event.key.state == SDL_PRESSED ? 1.0f : -1.0f);
+						} break;
+
+						case SDLK_LEFT:
+						{
+							state->arrow_keys += vf2 { -1.0f,  0.0f } * (event.key.state == SDL_PRESSED ? 1.0f : -1.0f);
+						} break;
+
+						case SDLK_RIGHT:
+						{
+							state->arrow_keys += vf2 {  1.0f,  0.0f } * (event.key.state == SDL_PRESSED ? 1.0f : -1.0f);
+						} break;
+
+						case SDLK_DOWN:
+						{
+							state->arrow_keys += vf2 {  0.0f, -1.0f } * (event.key.state == SDL_PRESSED ? 1.0f : -1.0f);
+						} break;
+
+						case SDLK_UP:
+						{
+							state->arrow_keys += vf2 {  0.0f,  1.0f } * (event.key.state == SDL_PRESSED ? 1.0f : -1.0f);
+						} break;
+					}
 				}
 			} break;
 		}
 	}
 
 	state->camera_velocity  = (+state->wasd ? normalize(state->wasd) : state->wasd) * CAMERA_SPEED;
-	state->camera_position += state->camera_velocity * SIMULATION_TIME_STEP;
+	state->camera_position += state->camera_velocity * UPDATE_FREQUENCY; // @TODO@ Should `UPDATE_FREQUENCY` be used here or another clock?
+
+	state->simulation_time_step += state->arrow_keys.x * TIME_STEP_CHANGE_SPEED;
+	state->simulation_time_step = CLAMP(state->simulation_time_step, 0.0f, 2.0f * UPDATE_FREQUENCY);
 
 	SDL_SetRenderDrawColor(program->renderer, 0, 0, 0, 255);
 	SDL_RenderClear(program->renderer);
@@ -455,7 +494,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 		SDL_SemPost(data->activation);
 	}
 
-	update_boid_directions(state->map.old_boids, state->map.new_boids, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD, &state->map);
+	update_boid_directions(state, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD);
 
 	FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
 	{
@@ -466,7 +505,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 	{
 		Boid* old_boid = &state->map.old_boids[new_boid_index];
 
-		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * SIMULATION_TIME_STEP;
+		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * state->simulation_time_step;
 
 		if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
 		{

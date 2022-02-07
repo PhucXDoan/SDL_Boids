@@ -82,10 +82,10 @@ int main(int, char**)
 					}
 					else
 					{
-						while (program.is_running && seconds_passed >= UPDATE_HERTZ)
+						while (program.is_running && seconds_passed >= UPDATE_FREQUENCY)
 						{
 							hotloading_data.update(&program);
-							seconds_passed -= UPDATE_HERTZ;
+							seconds_passed -= UPDATE_FREQUENCY;
 						}
 					}
 				}
