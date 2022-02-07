@@ -266,7 +266,7 @@ void update_boid_directions(Boid* old_boids, Boid* new_boids, i32 starting_index
 
 		new_boids[boid_index].direction =
 			desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE
-				? slerp(old_boid->direction, desired_movement / desired_movement_distance, ANGULAR_VELOCITY * SIMULATION_TIME_STEP_SECONDS)
+				? slerp(old_boid->direction, desired_movement / desired_movement_distance, ANGULAR_VELOCITY * SIMULATION_TIME_STEP)
 				: old_boid->direction;
 	}
 }
@@ -299,7 +299,7 @@ void render_lines(SDL_Renderer* renderer, vf2* points, i32 points_capacity)
 
 void render_fill_rect(SDL_Renderer* renderer, vf2 bottom_left, vf2 dimensions)
 {
-	SDL_Rect rect = { static_cast<i32>(bottom_left.x), static_cast<i32>(WINDOW_HEIGHT - 1 - bottom_left.y), static_cast<i32>(dimensions.x), static_cast<i32>(dimensions.y) };
+	SDL_Rect rect = { static_cast<i32>(bottom_left.x), static_cast<i32>(WINDOW_HEIGHT - 1 - bottom_left.y - dimensions.y), static_cast<i32>(dimensions.x), static_cast<i32>(dimensions.y) };
 	SDL_RenderFillRect(renderer, &rect);
 }
 
@@ -350,7 +350,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		state->wasd            = {};
 		state->camera_velocity = { 0.0f, 0.0f };
-		state->camera_center   = { 0.0f, 0.0f };
+		state->camera_position = { 0.0f, 0.0f };
 	}
 
 	//
@@ -397,13 +397,14 @@ extern "C" PROTOTYPE_UPDATE(update)
 		}
 	}
 
-	state->camera_velocity = +state->wasd ? normalize(state->wasd) : state->wasd;
+	state->camera_velocity  = (+state->wasd ? normalize(state->wasd) : state->wasd) * CAMERA_SPEED;
+	state->camera_position += state->camera_velocity * SIMULATION_TIME_STEP;
 
 	SDL_SetRenderDrawColor(program->renderer, 0, 0, 0, 255);
 	SDL_RenderClear(program->renderer);
 
 	//
-	// Spatial Partition Display.
+	// Heat map.
 	//
 
 	FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
@@ -422,8 +423,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 			render_fill_rect
 			(
 				program->renderer,
-				vf2 ( current_chunk_node->x * PIXELS_PER_METER, (current_chunk_node->y + 1) * PIXELS_PER_METER ),
-				vf2 ( PIXELS_PER_METER, PIXELS_PER_METER )
+				(vf2 ( current_chunk_node->x, current_chunk_node->y ) - state->camera_position) * PIXELS_PER_METER,
+				vf2 ( 1.0f, 1.0f ) * PIXELS_PER_METER
 			);
 		}
 	}
@@ -433,14 +434,14 @@ extern "C" PROTOTYPE_UPDATE(update)
 	//
 
 	SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
-	FOR_RANGE(i, 0, WINDOW_WIDTH / PIXELS_PER_METER + 1)
+	FOR_RANGE(i, pxd_floor(state->camera_position.x), pxd_floor(state->camera_position.x) + WINDOW_WIDTH / PIXELS_PER_METER + 2) // @TODO@ SPEED!
 	{
-		render_line(program->renderer, vf2 ( i * PIXELS_PER_METER, 0.0f ), vf2 ( i * PIXELS_PER_METER, WINDOW_HEIGHT ));
+		render_line(program->renderer, vf2 ( i - state->camera_position.x, 0.0f ) * PIXELS_PER_METER, vf2 ( i - state->camera_position.x, WINDOW_HEIGHT ) * PIXELS_PER_METER);
 	}
 
-	FOR_RANGE(i, 0, WINDOW_HEIGHT / PIXELS_PER_METER + 1)
+	FOR_RANGE(i, pxd_floor(state->camera_position.y), pxd_floor(state->camera_position.y) + WINDOW_WIDTH / PIXELS_PER_METER + 2) // @TODO@ SPEED!
 	{
-		render_line(program->renderer, vf2 ( 0.0f, i * PIXELS_PER_METER ), vf2 ( WINDOW_WIDTH, i * PIXELS_PER_METER ));
+		render_line(program->renderer, vf2 ( 0.0f, i - state->camera_position.y ) * PIXELS_PER_METER, vf2 ( WINDOW_HEIGHT, i - state->camera_position.y ) * PIXELS_PER_METER);
 	}
 
 	//
@@ -465,7 +466,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 	{
 		Boid* old_boid = &state->map.old_boids[new_boid_index];
 
-		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * SIMULATION_TIME_STEP_SECONDS;
+		new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * SIMULATION_TIME_STEP;
 
 		if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
 		{
@@ -473,11 +474,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
 		}
 
-		//
-		// Boid Rendering.
-		//
-
-		vf2 offset = new_boid->position * static_cast<f32>(PIXELS_PER_METER);
+		vf2 offset = (new_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER);
 
 		vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
 		FOR_ELEMS(point, points)
