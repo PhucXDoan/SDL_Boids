@@ -364,6 +364,10 @@ extern "C" PROTOTYPE_UPDATE(update)
 		}
 
 		state->map.new_boids = PUSH(&state->map.arena, Boid, BOID_AMOUNT);
+
+		state->wasd            = {};
+		state->camera_velocity = { 0.0f, 0.0f };
+		state->camera_center   = { 0.0f, 0.0f };
 	}
 
 	//
@@ -392,8 +396,25 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 				return;
 			} break;
+
+			case SDL_KEYDOWN:
+			case SDL_KEYUP:
+			{
+				if (!event.key.repeat)
+				{
+					state->wasd +=
+						(
+							event.key.keysym.sym == SDLK_a ? vf2 { -1.0f,  0.0f } :
+							event.key.keysym.sym == SDLK_d ? vf2 {  1.0f,  0.0f } :
+							event.key.keysym.sym == SDLK_s ? vf2 {  0.0f, -1.0f } :
+							event.key.keysym.sym == SDLK_w ? vf2 {  0.0f,  1.0f } : vf2 { 0.0f, 0.0f }
+						) * (event.key.state == SDL_PRESSED ? 1.0f : -1.0f);
+				}
+			} break;
 		}
 	}
+
+	state->camera_velocity = +state->wasd ? normalize(state->wasd) : state->wasd;
 
 	SDL_SetRenderDrawColor(program->renderer, 0, 0, 0, 255);
 	SDL_RenderClear(program->renderer);

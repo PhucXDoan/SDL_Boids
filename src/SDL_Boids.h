@@ -89,4 +89,7 @@ struct State
 	HelperThreadData helper_thread_datas[HELPER_THREAD_COUNT];
 	u64              seed;
 	Map              map;
+	vf2              wasd;
+	vf2              camera_velocity;
+	vf2              camera_center;
 };
