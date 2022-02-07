@@ -476,18 +476,21 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		vf2 offset = (new_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER);
 
-		vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
-		FOR_ELEMS(point, points)
+		if (IN_RANGE(offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(offset.y, 0.0f, WINDOW_HEIGHT)) // @TODO@ Make it where it's not visible that boids are being culled in a non-cheesy way.
 		{
-			*point =
-				vf2
-				{
-					BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
-					BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
-				} * BOID_SCALAR + offset;
-		}
+			vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
+			FOR_ELEMS(point, points)
+			{
+				*point =
+					vf2
+					{
+						BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
+						BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
+					} * BOID_SCALAR + offset;
+			}
 
-		render_lines(program->renderer, points, ARRAY_CAPACITY(points));
+			render_lines(program->renderer, points, ARRAY_CAPACITY(points));
+		}
 	}
 
 	SDL_RenderPresent(program->renderer);
