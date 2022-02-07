@@ -30,6 +30,10 @@ constexpr f32 BOID_SCALAR                       = 0.75f;
 constexpr i32 HELPER_THREAD_COUNT               = 4;
 constexpr f32 CAMERA_SPEED                      = 6.0f;
 constexpr f32 TIME_STEP_CHANGE_SPEED            = 0.001f;
+constexpr f32 ZOOM_CHANGE_SPEED                 = 0.015f;
+constexpr f32 ZOOM_MINIMUM_SCALE_FACTOR         = 0.5f;
+constexpr f32 ZOOM_MAXIMUM_SCALE_FACTOR         = 4.00f;
+constexpr f32 TIME_STEP_MAXIMUM_SCALE_FACTOR    = 2.0f;
 constexpr vf2 BOID_VERTICES[]                   =
 	{
 		{  5.0f,  0.0f },
@@ -94,5 +98,6 @@ struct State
 	vf2              arrow_keys;
 	vf2              camera_velocity;
 	vf2              camera_position;
+	f32              camera_zoom;
 	f32              simulation_time_step;
 };

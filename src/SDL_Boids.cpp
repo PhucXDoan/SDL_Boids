@@ -350,7 +350,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		state->wasd                 = {};
 		state->camera_velocity      = { 0.0f, 0.0f };
-		state->camera_position      = { 0.0f, 0.0f };
+		state->camera_position      = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / PIXELS_PER_METER / 2.0f;
+		state->camera_zoom          = 1.0f;
 		state->simulation_time_step = UPDATE_FREQUENCY;
 	}
 
@@ -436,8 +437,11 @@ extern "C" PROTOTYPE_UPDATE(update)
 	state->camera_velocity  = (+state->wasd ? normalize(state->wasd) : state->wasd) * CAMERA_SPEED;
 	state->camera_position += state->camera_velocity * UPDATE_FREQUENCY; // @TODO@ Should `UPDATE_FREQUENCY` be used here or another clock?
 
+	state->camera_zoom += state->arrow_keys.y * ZOOM_CHANGE_SPEED;
+	state->camera_zoom = CLAMP(state->camera_zoom, ZOOM_MINIMUM_SCALE_FACTOR, ZOOM_MAXIMUM_SCALE_FACTOR);
+
 	state->simulation_time_step += state->arrow_keys.x * TIME_STEP_CHANGE_SPEED;
-	state->simulation_time_step = CLAMP(state->simulation_time_step, 0.0f, 2.0f * UPDATE_FREQUENCY);
+	state->simulation_time_step = CLAMP(state->simulation_time_step, 0.0f, TIME_STEP_MAXIMUM_SCALE_FACTOR * UPDATE_FREQUENCY);
 
 	SDL_SetRenderDrawColor(program->renderer, 0, 0, 0, 255);
 	SDL_RenderClear(program->renderer);
@@ -462,8 +466,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 			render_fill_rect
 			(
 				program->renderer,
-				(vf2 ( current_chunk_node->x, current_chunk_node->y ) - state->camera_position) * PIXELS_PER_METER,
-				vf2 ( 1.0f, 1.0f ) * PIXELS_PER_METER
+				(vf2 ( current_chunk_node->x, current_chunk_node->y ) - state->camera_position) * PIXELS_PER_METER * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f,
+				vf2 ( 1.0f, 1.0f ) * PIXELS_PER_METER * state->camera_zoom
 			);
 		}
 	}
@@ -472,15 +476,17 @@ extern "C" PROTOTYPE_UPDATE(update)
 	// Grid.
 	//
 
+	// @TODO@ Make the math right here!
 	SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
-	FOR_RANGE(i, pxd_floor(state->camera_position.x), pxd_floor(state->camera_position.x) + WINDOW_WIDTH / PIXELS_PER_METER + 2) // @TODO@ SPEED!
+	FOR_RANGE(i, pxd_floor(state->camera_position.x - WINDOW_WIDTH / PIXELS_PER_METER / 2 / state->camera_zoom - 2.0f), pxd_floor(state->camera_position.x + WINDOW_WIDTH / PIXELS_PER_METER / 2 / state->camera_zoom + 4.0f)) // @TODO@ SPEED!
 	{
-		render_line(program->renderer, vf2 ( i - state->camera_position.x, 0.0f ) * PIXELS_PER_METER, vf2 ( i - state->camera_position.x, WINDOW_HEIGHT ) * PIXELS_PER_METER);
+		f32 x = (i - state->camera_position.x) * PIXELS_PER_METER * state->camera_zoom + WINDOW_WIDTH / 2.0f;
+		render_line(program->renderer, vf2 ( x, 0.0f ), vf2 ( x, WINDOW_HEIGHT ));
 	}
-
-	FOR_RANGE(i, pxd_floor(state->camera_position.y), pxd_floor(state->camera_position.y) + WINDOW_WIDTH / PIXELS_PER_METER + 2) // @TODO@ SPEED!
+	FOR_RANGE(i, pxd_floor(state->camera_position.y - WINDOW_HEIGHT / PIXELS_PER_METER / 2 / state->camera_zoom), pxd_floor(state->camera_position.y + WINDOW_HEIGHT / PIXELS_PER_METER / 2 / state->camera_zoom + 2)) // @TODO@ SPEED!
 	{
-		render_line(program->renderer, vf2 ( 0.0f, i - state->camera_position.y ) * PIXELS_PER_METER, vf2 ( WINDOW_HEIGHT, i - state->camera_position.y ) * PIXELS_PER_METER);
+		f32 y = (i - state->camera_position.y) * PIXELS_PER_METER * state->camera_zoom + WINDOW_HEIGHT / 2.0f;
+		render_line(program->renderer, vf2 ( 0.0f, y ), vf2 ( WINDOW_WIDTH, y ));
 	}
 
 	//
@@ -515,17 +521,20 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		vf2 offset = (new_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER);
 
-		if (IN_RANGE(offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(offset.y, 0.0f, WINDOW_HEIGHT)) // @TODO@ Make it where it's not visible that boids are being culled in a non-cheesy way.
+		// @TODO@ Add culling back!
+		// if (IN_RANGE(offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(offset.y, 0.0f, WINDOW_HEIGHT)) // @TODO@ Make it where it's not visible that boids are being culled in a non-cheesy way.
 		{
 			vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
 			FOR_ELEMS(point, points)
 			{
 				*point =
-					vf2
-					{
-						BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
-						BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
-					} * BOID_SCALAR + offset;
+					(
+						vf2
+						{
+							BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
+							BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
+						} * BOID_SCALAR + offset
+					) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
 			}
 
 			render_lines(program->renderer, points, ARRAY_CAPACITY(points));
