@@ -183,7 +183,7 @@ inline f32 rand_range(u64* seed, f32 min, f32 max)
 	return (rand_u64(seed) % 0xFFFFFFFF / static_cast<f32>(0xFFFFFFFF)) * (max - min);
 }
 
-vf2 slerp(vf2 a, vf2 b, f32 step) // @TODO@ SPEEEEEEEEEEEEEEDD!!
+inline vf2 slerp(vf2 a, vf2 b, f32 step) // @TODO@ SPEEEEEEEEEEEEEEDD!!
 {
 	f32 dot_prod = dot(a, b);
 	f32 angle    = acosf(CLAMP(dot_prod, -1.0f, 1.0f));
@@ -194,6 +194,9 @@ vf2 slerp(vf2 a, vf2 b, f32 step) // @TODO@ SPEEEEEEEEEEEEEEDD!!
 			? normalize((sinf((1.0f - time) * angle) * a + sinf(time * angle) * b) / sinf(angle))
 			: a;
 }
+
+inline f32 lerp(f32 a, f32 b, f32 t) { return (1.0f - t) * a + t * b; }
+inline vf2 lerp(vf2 a, vf2 b, f32 t) { return (1.0f - t) * a + t * b; }
 
 void update_boid_directions(State* state, i32 starting_index, i32 count)
 {
@@ -321,8 +324,6 @@ extern "C" PROTOTYPE_UPDATE(update)
 			data->new_boids_offset = BASE_WORKLOAD_FOR_HELPER_THREADS * data_index;
 			data->helper_thread    = SDL_CreateThread(helper_thread_work, "`helper_thread_work`", reinterpret_cast<void*>(data));
 
-			// @TODO@ There seems to be a non-deterministic memory reading error here associated with hotloading!!
-
 			DEBUG_printf("Created helper thread (#%d)\n", data_index);
 		}
 
@@ -350,11 +351,13 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		state->map.new_boids = PUSH(&state->map.arena, Boid, BOID_AMOUNT);
 
-		state->wasd                 = {};
-		state->camera_velocity      = { 0.0f, 0.0f };
-		state->camera_position      = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / PIXELS_PER_METER / 2.0f;
-		state->camera_zoom          = 1.0f;
-		state->simulation_time_step = UPDATE_FREQUENCY;
+		state->wasd                   = {};
+		state->camera_velocity_target = { 0.0f, 0.0f };
+		state->camera_velocity        = { 0.0f, 0.0f };
+		state->camera_position        = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / PIXELS_PER_METER / 2.0f;
+		state->camera_zoom_target     = 1.0f;
+		state->camera_zoom            = 1.0f;
+		state->simulation_time_step   = UPDATE_FREQUENCY;
 	}
 
 	//
@@ -436,11 +439,13 @@ extern "C" PROTOTYPE_UPDATE(update)
 		}
 	}
 
-	state->camera_velocity  = (+state->wasd ? normalize(state->wasd) : state->wasd) * CAMERA_SPEED;
-	state->camera_position += state->camera_velocity * UPDATE_FREQUENCY; // @TODO@ Should `UPDATE_FREQUENCY` be used here or another clock?
+	state->camera_velocity_target  = (+state->wasd ? normalize(state->wasd) : state->wasd) * CAMERA_SPEED;
+	state->camera_velocity         = lerp(state->camera_velocity, state->camera_velocity_target, CAMERA_SPEED_DAMPING);
+	state->camera_position        += state->camera_velocity * UPDATE_FREQUENCY; // @TODO@ Should `UPDATE_FREQUENCY` be used here or another clock?
 
-	state->camera_zoom += state->camera_zoom * state->arrow_keys.y * ZOOM_CHANGE_SPEED;
-	state->camera_zoom = CLAMP(state->camera_zoom, ZOOM_MINIMUM_SCALE_FACTOR, ZOOM_MAXIMUM_SCALE_FACTOR);
+	state->camera_zoom_target += state->camera_zoom_target * state->arrow_keys.y * ZOOM_CHANGE_SPEED;
+	state->camera_zoom_target = CLAMP(state->camera_zoom_target, ZOOM_MINIMUM_SCALE_FACTOR, ZOOM_MAXIMUM_SCALE_FACTOR);
+	state->camera_zoom        = lerp(state->camera_zoom, state->camera_zoom_target, ZOOM_CHANGE_DAMPING);
 
 	state->simulation_time_step += state->arrow_keys.x * TIME_STEP_CHANGE_SPEED;
 	state->simulation_time_step = CLAMP(state->simulation_time_step, 0.0f, TIME_STEP_MAXIMUM_SCALE_FACTOR * UPDATE_FREQUENCY);
