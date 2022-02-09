@@ -29,6 +29,11 @@ inline constexpr i32 pxd_ceil(f32 f)
 	return -pxd_floor(-f);
 }
 
+inline constexpr i32 pxd_trunc(f32 f)
+{
+	return static_cast<i32>(f);
+}
+
 inline f32 signed_unit_curve(f32 a, f32 b, f32 x)
 {
 	if (x < 0.0f)
@@ -483,16 +488,16 @@ extern "C" PROTOTYPE_UPDATE(update)
 	// Grid.
 	//
 
-	// @TODO@ Make the math right here!
+	// @TODO@ Works for now. Maybe it can be cleaned up some how?
 	SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
-	FOR_RANGE(i, pxd_floor(state->camera_position.x - WINDOW_WIDTH / PIXELS_PER_METER / 2 / state->camera_zoom - 2.0f), pxd_floor(state->camera_position.x + WINDOW_WIDTH / PIXELS_PER_METER / 2 / state->camera_zoom + 4.0f)) // @TODO@ SPEED!
+	FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_WIDTH) / PIXELS_PER_METER / state->camera_zoom) + 1)
 	{
-		f32 x = (i - state->camera_position.x) * PIXELS_PER_METER * state->camera_zoom + WINDOW_WIDTH / 2.0f;
+		f32 x = (pxd_floor(state->camera_position.x - WINDOW_WIDTH / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.x) * state->camera_zoom * PIXELS_PER_METER + WINDOW_WIDTH / 2.0f;
 		render_line(program->renderer, vf2 ( x, 0.0f ), vf2 ( x, WINDOW_HEIGHT ));
 	}
-	FOR_RANGE(i, pxd_floor(state->camera_position.y - WINDOW_HEIGHT / PIXELS_PER_METER / 2 / state->camera_zoom), pxd_floor(state->camera_position.y + WINDOW_HEIGHT / PIXELS_PER_METER / 2 / state->camera_zoom + 2)) // @TODO@ SPEED!
+	FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER / state->camera_zoom) + 1)
 	{
-		f32 y = (i - state->camera_position.y) * PIXELS_PER_METER * state->camera_zoom + WINDOW_HEIGHT / 2.0f;
+		f32 y = (pxd_floor(state->camera_position.y - WINDOW_HEIGHT / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.y) * state->camera_zoom * PIXELS_PER_METER + WINDOW_HEIGHT / 2.0f;
 		render_line(program->renderer, vf2 ( 0.0f, y ), vf2 ( WINDOW_WIDTH, y ));
 	}
 
