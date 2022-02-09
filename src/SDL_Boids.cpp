@@ -531,22 +531,19 @@ extern "C" PROTOTYPE_UPDATE(update)
 			push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
 		}
 
-		vf2 offset = (new_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER);
+		vf2 pixel_offset = (new_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
 
-		// @TODO@ Add culling back!
-		// if (IN_RANGE(offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(offset.y, 0.0f, WINDOW_HEIGHT)) // @TODO@ Make it where it's not visible that boids are being culled in a non-cheesy way.
+		if (IN_RANGE(pixel_offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(pixel_offset.y, 0.0f, WINDOW_HEIGHT))
 		{
 			vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
 			FOR_ELEMS(point, points)
 			{
 				*point =
-					(
-						vf2
-						{
-							BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
-							BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
-						} * BOID_SCALAR + offset
-					) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
+					vf2 // @TODO@ There's no real sense of size for a boid...
+					{
+						BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
+						BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
+					} * BOID_SCALAR * state->camera_zoom + pixel_offset;
 			}
 
 			render_lines(program->renderer, points, ARRAY_CAPACITY(points));
