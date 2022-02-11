@@ -1,7 +1,7 @@
 @echo off
 
 set COMMON_COMPILER_FLAGS=-DDEBUG=1 -nologo -std:c++17 -MTd -GR- -EHsc -EHa- -Od -Oi -Z7 -W4 -wd4100 -wd4201 -I W:\SDL2\include\
-set COMMON_LINKER_FLAGS=-opt:ref -incremental:no -subsystem:windows W:\SDL2\lib\x64\SDL2.lib W:\SDL2\lib\x64\SDL2main.lib shell32.lib
+set COMMON_LINKER_FLAGS=-DEBUG:FULL -opt:ref -incremental:no -subsystem:windows W:\SDL2\lib\x64\SDL2.lib W:\SDL2\lib\x64\SDL2main.lib shell32.lib
 
 IF NOT EXIST W:\build\ mkdir W:\build\
 pushd W:\build\
@@ -32,6 +32,8 @@ pushd W:\build\
 	REM `-wd4100`            "'identifier' : unreferenced formal parameter"
 	REM `-wd4201`            "nonstandard extension used : nameless struct/union"
 	REM `-I`                 "Adds a directory to the list of directories searched for include files."
+	REM `-DEBUG:FULL`        "The /DEBUG:FULL option moves all private symbol information from individual compilation products (object files and libraries) into a single PDB, and can be the most time-consuming part of the link.
+	REM                       However, the full PDB can be used to debug the executable when no other build products are available, such as when the executable is deployed."
 	REM `-opt:ref`           "/OPT:REF eliminates functions and data that are never referenced."
 	REM `-incremental:no`    "Controls how the linker handles incremental linking."
 	REM `-subsystem:windows` "The /SUBSYSTEM option specifies the environment for the executable. Application does not require a console, probably because it creates its own windows for interaction with the user."
