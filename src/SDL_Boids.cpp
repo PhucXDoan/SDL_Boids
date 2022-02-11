@@ -539,11 +539,11 @@ extern "C" PROTOTYPE_UPDATE(update)
 			FOR_ELEMS(point, points)
 			{
 				*point =
-					vf2 // @TODO@ There's no real sense of size for a boid...
+					vf2
 					{
 						BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
 						BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
-					} * BOID_SCALAR * state->camera_zoom + pixel_offset;
+					} * state->camera_zoom + pixel_offset;
 			}
 
 			render_lines(program->renderer, points, ARRAY_CAPACITY(points));
