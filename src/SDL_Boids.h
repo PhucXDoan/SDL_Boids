@@ -13,7 +13,7 @@
 // @TODO@ Have a random leader boid.
 
 constexpr i32 PIXELS_PER_METER                  = 50;
-constexpr f32 BOID_VELOCITY                     = 1.5f;
+constexpr f32 BOID_VELOCITY                     = 1.0f;
 constexpr i32 BOID_AMOUNT                       = 4096;
 constexpr f32 BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
 constexpr f32 MINIMUM_RADIUS                    = 0.005f;
@@ -27,15 +27,15 @@ constexpr f32 BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
 constexpr f32 BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
 constexpr f32 HEATMAP_SENSITIVITY               = 8.0f;
 constexpr i32 HELPER_THREAD_COUNT               = 4;
-constexpr f32 CAMERA_SPEED                      = 6.0f;
-constexpr f32 CAMERA_SPEED_DAMPING              = 0.25f;
-constexpr f32 TIME_STEP_CHANGE_SPEED            = 0.001f;
-constexpr f32 ZOOM_CHANGE_SPEED                 = 0.025f;
-constexpr f32 ZOOM_CHANGE_DAMPING               = 0.25f;
+constexpr f32 CAMERA_VELOCITY                   = 8.0f;
+constexpr f32 CAMERA_ACCELERATION               = 64.0f;
+constexpr f32 ZOOM_VELOCITY                     = 0.75f;
+constexpr f32 ZOOM_ACCELERATION                 = 8.0f;
 constexpr f32 ZOOM_MINIMUM_SCALE_FACTOR         = 0.5f;
 constexpr f32 ZOOM_MAXIMUM_SCALE_FACTOR         = 4.00f;
-constexpr f32 TIME_STEP_MAXIMUM_SCALE_FACTOR    = 2.0f;
-constexpr f32 UPDATE_FREQUENCY                  = 1.0f / 30.0f; // @TODO@ Frame rate dependence!!
+constexpr f32 TIME_SCALAR_CHANGE_SPEED          = 0.5f;
+constexpr f32 TIME_SCALAR_MAXIMUM_SCALE_FACTOR  = 2.0f;
+constexpr f32 UPDATE_FREQUENCY                  = 1.0f / 60.0f;
 constexpr vf2 BOID_VERTICES[]                   =
 	{
 		{  4.5f,  0.0f },
@@ -102,8 +102,9 @@ struct State
 	vf2              camera_velocity_target;
 	vf2              camera_velocity;
 	vf2              camera_position;
-	f32              camera_zoom_target;
+	f32              camera_zoom_velocity_target;
+	f32              camera_zoom_velocity;
 	f32              camera_zoom;
-	f32              simulation_time_step;
+	f32              simulation_time_scalar;
 	f32              real_world_counter_seconds;
 };

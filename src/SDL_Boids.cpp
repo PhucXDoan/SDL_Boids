@@ -203,8 +203,23 @@ inline f32 rand_range(u64* seed, f32 min, f32 max)
 	return (rand_u64(seed) % 0xFFFFFFFF / static_cast<f32>(0xFFFFFFFF)) * (max - min);
 }
 
-inline f32 lerp(f32 a, f32 b, f32 t) { return (1.0f - t) * a + t * b; }
-inline vf2 lerp(vf2 a, vf2 b, f32 t) { return (1.0f - t) * a + t * b; }
+inline f32 inch_towards(f32 start, f32 end, f32 step)
+{
+	f32 delta = end - start;
+	if (-step <= delta && delta <= step)
+	{
+		return end;
+	}
+	else
+	{
+		return start + step * pxd_sign(delta);
+	}
+}
+
+inline vf2 inch_towards(vf2 start, vf2 end, f32 step)
+{
+	return { inch_towards(start.x, end.x, step), inch_towards(start.y, end.y, step) };
+}
 
 void update_boids(State* state, i32 starting_index, i32 count)
 {
@@ -280,7 +295,7 @@ void update_boids(State* state, i32 starting_index, i32 count)
 			// @TODO@ Still need to figure out the best way to steer boids...
 
 			vf2 desired_direction = desired_movement / desired_movement_distance;
-			f32 step              = ANGULAR_VELOCITY * state->simulation_time_step;
+			f32 step              = ANGULAR_VELOCITY * state->simulation_time_scalar * UPDATE_FREQUENCY;
 			f32 angle             = pxd_arccos(CLAMP(dot(old_boid->direction, desired_direction), -1.0f, 1.0f));
 
 			if (angle <= step)
@@ -299,7 +314,7 @@ void update_boids(State* state, i32 starting_index, i32 count)
 			state->map.new_boids[boid_index].direction = old_boid->direction;
 		}
 
-		state->map.new_boids[boid_index].position = old_boid->position + BOID_VELOCITY * old_boid->direction * state->simulation_time_step;
+		state->map.new_boids[boid_index].position = old_boid->position + BOID_VELOCITY * old_boid->direction * state->simulation_time_scalar * UPDATE_FREQUENCY;
 	}
 }
 
@@ -404,15 +419,15 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		state->map.new_boids = PUSH(&state->map.arena, Boid, BOID_AMOUNT);
 
-		state->wasd                       = {};
-		state->camera_velocity_target     = { 0.0f, 0.0f };
-		state->camera_velocity            = { 0.0f, 0.0f };
-		state->camera_position            = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / PIXELS_PER_METER / 2.0f;
-		state->camera_zoom_target         = 1.0f;
-		state->camera_zoom                = 1.0f;
-		state->camera_zoom                = 1.0f;
-		state->simulation_time_step       = 0.1f;
-		state->real_world_counter_seconds = 0.0f;
+		state->wasd                        = { 0.0f, 0.0f };
+		state->camera_velocity_target      = { 0.0f, 0.0f };
+		state->camera_velocity             = { 0.0f, 0.0f };
+		state->camera_position             = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / PIXELS_PER_METER / 2.0f;
+		state->camera_zoom_velocity_target = 0.0f;
+		state->camera_zoom_velocity        = 0.0f;
+		state->camera_zoom                 = 1.0f;
+		state->simulation_time_scalar      = 1.0f;
+		state->real_world_counter_seconds  = 0.0f;
 	}
 
 	if (program->is_going_to_hotload)
@@ -494,18 +509,31 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
 		{
-			while (true)
+			do
 			{
-				state->camera_velocity_target  = (+state->wasd ? normalize(state->wasd) : state->wasd) * CAMERA_SPEED;
-				state->camera_velocity         = lerp(state->camera_velocity, state->camera_velocity_target, CAMERA_SPEED_DAMPING);
+				state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * CAMERA_VELOCITY : vf2 { 0.0f, 0.0f };
+				state->camera_velocity         = inch_towards(state->camera_velocity, state->camera_velocity_target, CAMERA_ACCELERATION * UPDATE_FREQUENCY);
 				state->camera_position        += state->camera_velocity * UPDATE_FREQUENCY;
 
-				state->camera_zoom_target += state->camera_zoom_target * state->arrow_keys.y * ZOOM_CHANGE_SPEED;
-				state->camera_zoom_target = CLAMP(state->camera_zoom_target, ZOOM_MINIMUM_SCALE_FACTOR, ZOOM_MAXIMUM_SCALE_FACTOR);
-				state->camera_zoom        = lerp(state->camera_zoom, state->camera_zoom_target, ZOOM_CHANGE_DAMPING);
+				state->camera_zoom_velocity_target  = state->arrow_keys.y * ZOOM_VELOCITY * state->camera_zoom;
+				state->camera_zoom_velocity         = inch_towards(state->camera_zoom_velocity, state->camera_zoom_velocity_target, ZOOM_ACCELERATION * UPDATE_FREQUENCY);
+				state->camera_zoom                 += state->camera_zoom_velocity * UPDATE_FREQUENCY;
 
-				state->simulation_time_step += state->arrow_keys.x * TIME_STEP_CHANGE_SPEED;
-				state->simulation_time_step  = CLAMP(state->simulation_time_step, 0.0f, TIME_STEP_MAXIMUM_SCALE_FACTOR * UPDATE_FREQUENCY);
+				if (state->camera_zoom < ZOOM_MINIMUM_SCALE_FACTOR)
+				{
+					state->camera_zoom_velocity_target = 0.0f;
+					state->camera_zoom_velocity        = 0.0f;
+					state->camera_zoom                 = ZOOM_MINIMUM_SCALE_FACTOR;
+				}
+				else if (state->camera_zoom > ZOOM_MAXIMUM_SCALE_FACTOR)
+				{
+					state->camera_zoom_velocity_target = 0.0f;
+					state->camera_zoom_velocity        = 0.0f;
+					state->camera_zoom                 = ZOOM_MAXIMUM_SCALE_FACTOR;
+				}
+
+				state->simulation_time_scalar += state->arrow_keys.x * TIME_SCALAR_CHANGE_SPEED * UPDATE_FREQUENCY;
+				state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, TIME_SCALAR_MAXIMUM_SCALE_FACTOR);
 
 				FOR_ELEMS(data, state->helper_thread_datas)
 				{
@@ -530,17 +558,10 @@ extern "C" PROTOTYPE_UPDATE(update)
 					}
 				}
 
-				state->real_world_counter_seconds -= UPDATE_FREQUENCY;
-
-				if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
-				{
-					SWAP(state->map.new_boids, state->map.old_boids);
-				}
-				else
-				{
-					break;
-				}
+				SWAP(state->map.new_boids, state->map.old_boids);
 			}
+			while (state->real_world_counter_seconds -= UPDATE_FREQUENCY, state->real_world_counter_seconds >= UPDATE_FREQUENCY);
+
 
 			//
 			// Heat map.
@@ -594,9 +615,9 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 			SDL_SetRenderDrawColor(program->renderer, 222, 173, 38, 255);
 
-			FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
+			FOR_ELEMS(old_boid, state->map.old_boids, BOID_AMOUNT)
 			{
-				vf2 pixel_offset = (new_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
+				vf2 pixel_offset = (old_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
 
 				if (IN_RANGE(pixel_offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(pixel_offset.y, 0.0f, WINDOW_HEIGHT))
 				{
@@ -606,8 +627,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 						*point =
 							vf2
 							{
-								BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
-								BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
+								BOID_VERTICES[point_index].x * old_boid->direction.x - BOID_VERTICES[point_index].y * old_boid->direction.y,
+								BOID_VERTICES[point_index].x * old_boid->direction.y + BOID_VERTICES[point_index].y * old_boid->direction.x
 							} * state->camera_zoom + pixel_offset;
 					}
 
@@ -616,8 +637,6 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 
 			SDL_RenderPresent(program->renderer);
-
-			SWAP(state->map.new_boids, state->map.old_boids);
 		}
 	}
 }
