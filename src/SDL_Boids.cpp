@@ -404,14 +404,15 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		state->map.new_boids = PUSH(&state->map.arena, Boid, BOID_AMOUNT);
 
-		state->wasd                   = {};
-		state->camera_velocity_target = { 0.0f, 0.0f };
-		state->camera_velocity        = { 0.0f, 0.0f };
-		state->camera_position        = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / PIXELS_PER_METER / 2.0f;
-		state->camera_zoom_target     = 1.0f;
-		state->camera_zoom            = 1.0f;
-		state->camera_zoom            = 1.0f;
-		state->simulation_time_step   = UPDATE_FREQUENCY;
+		state->wasd                       = {};
+		state->camera_velocity_target     = { 0.0f, 0.0f };
+		state->camera_velocity            = { 0.0f, 0.0f };
+		state->camera_position            = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / PIXELS_PER_METER / 2.0f;
+		state->camera_zoom_target         = 1.0f;
+		state->camera_zoom                = 1.0f;
+		state->camera_zoom                = 1.0f;
+		state->simulation_time_step       = 0.1f;
+		state->real_world_counter_seconds = 0.0f;
 	}
 
 	if (program->is_going_to_hotload)
@@ -424,10 +425,6 @@ extern "C" PROTOTYPE_UPDATE(update)
 		{
 			create_helper_threads(state);
 		}
-
-		//
-		// Input.
-		//
 
 		for (SDL_Event event; SDL_PollEvent(&event);)
 		{
@@ -493,112 +490,134 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 		}
 
-		state->camera_velocity_target  = (+state->wasd ? normalize(state->wasd) : state->wasd) * CAMERA_SPEED;
-		state->camera_velocity         = lerp(state->camera_velocity, state->camera_velocity_target, CAMERA_SPEED_DAMPING);
-		state->camera_position        += state->camera_velocity * UPDATE_FREQUENCY; // @TODO@ Should `UPDATE_FREQUENCY` be used here or another clock?
+		state->real_world_counter_seconds += program->delta_seconds;
 
-		state->camera_zoom_target += state->camera_zoom_target * state->arrow_keys.y * ZOOM_CHANGE_SPEED;
-		state->camera_zoom_target = CLAMP(state->camera_zoom_target, ZOOM_MINIMUM_SCALE_FACTOR, ZOOM_MAXIMUM_SCALE_FACTOR);
-		state->camera_zoom        = lerp(state->camera_zoom, state->camera_zoom_target, ZOOM_CHANGE_DAMPING);
-
-		state->simulation_time_step += state->arrow_keys.x * TIME_STEP_CHANGE_SPEED;
-		state->simulation_time_step = CLAMP(state->simulation_time_step, 0.0f, TIME_STEP_MAXIMUM_SCALE_FACTOR * UPDATE_FREQUENCY);
-
-		SDL_SetRenderDrawColor(program->renderer, 0, 0, 0, 255);
-		SDL_RenderClear(program->renderer);
-
-		//
-		// Heat map.
-		//
-
-		FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+		if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
 		{
-			for (ChunkNode* current_chunk_node = *chunk_node; current_chunk_node; current_chunk_node = current_chunk_node->next_node)
+			while (true)
 			{
-				f32 redness = 0.0f;
-				for (IndexBufferNode* node = current_chunk_node->index_buffer_node; node; node = node->next_node)
+				state->camera_velocity_target  = (+state->wasd ? normalize(state->wasd) : state->wasd) * CAMERA_SPEED;
+				state->camera_velocity         = lerp(state->camera_velocity, state->camera_velocity_target, CAMERA_SPEED_DAMPING);
+				state->camera_position        += state->camera_velocity * UPDATE_FREQUENCY;
+
+				state->camera_zoom_target += state->camera_zoom_target * state->arrow_keys.y * ZOOM_CHANGE_SPEED;
+				state->camera_zoom_target = CLAMP(state->camera_zoom_target, ZOOM_MINIMUM_SCALE_FACTOR, ZOOM_MAXIMUM_SCALE_FACTOR);
+				state->camera_zoom        = lerp(state->camera_zoom, state->camera_zoom_target, ZOOM_CHANGE_DAMPING);
+
+				state->simulation_time_step += state->arrow_keys.x * TIME_STEP_CHANGE_SPEED;
+				state->simulation_time_step  = CLAMP(state->simulation_time_step, 0.0f, TIME_STEP_MAXIMUM_SCALE_FACTOR * UPDATE_FREQUENCY);
+
+				FOR_ELEMS(data, state->helper_thread_datas)
 				{
-					redness += node->index_count;
-				}
-				redness *= HEATMAP_SENSITIVITY;
-
-				SDL_SetRenderDrawColor(program->renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
-
-				render_fill_rect
-				(
-					program->renderer,
-					(vf2 ( current_chunk_node->x, current_chunk_node->y ) - state->camera_position) * PIXELS_PER_METER * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f,
-					vf2 ( 1.0f, 1.0f ) * PIXELS_PER_METER * state->camera_zoom
-				);
-			}
-		}
-
-		//
-		// Grid.
-		//
-
-		// @TODO@ Works for now. Maybe it can be cleaned up some how?
-		SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
-		FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_WIDTH) / PIXELS_PER_METER / state->camera_zoom) + 1)
-		{
-			f32 x = (pxd_floor(state->camera_position.x - WINDOW_WIDTH / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.x) * state->camera_zoom * PIXELS_PER_METER + WINDOW_WIDTH / 2.0f;
-			render_line(program->renderer, vf2 ( x, 0.0f ), vf2 ( x, WINDOW_HEIGHT ));
-		}
-		FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER / state->camera_zoom) + 1)
-		{
-			f32 y = (pxd_floor(state->camera_position.y - WINDOW_HEIGHT / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.y) * state->camera_zoom * PIXELS_PER_METER + WINDOW_HEIGHT / 2.0f;
-			render_line(program->renderer, vf2 ( 0.0f, y ), vf2 ( WINDOW_WIDTH, y ));
-		}
-
-		//
-		// Boids.
-		//
-
-		SDL_SetRenderDrawColor(program->renderer, 222, 173, 38, 255);
-
-		FOR_ELEMS(data, state->helper_thread_datas)
-		{
-			SDL_SemPost(data->activation);
-		}
-
-		update_boids(state, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD);
-
-		FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
-		{
-			SDL_SemWait(state->completed_work);
-		}
-
-		FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
-		{
-			Boid* old_boid = &state->map.old_boids[new_boid_index];
-
-			if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
-			{
-				remove_index_from_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), new_boid_index);
-				push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
-			}
-
-			vf2 pixel_offset = (new_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
-
-			if (IN_RANGE(pixel_offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(pixel_offset.y, 0.0f, WINDOW_HEIGHT))
-			{
-				vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
-				FOR_ELEMS(point, points)
-				{
-					*point =
-						vf2
-						{
-							BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
-							BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
-						} * state->camera_zoom + pixel_offset;
+					SDL_SemPost(data->activation);
 				}
 
-				render_lines(program->renderer, points, ARRAY_CAPACITY(points));
+				update_boids(state, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD);
+
+				FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
+				{
+					SDL_SemWait(state->completed_work);
+				}
+
+				FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
+				{
+					Boid* old_boid = &state->map.old_boids[new_boid_index];
+
+					if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
+					{
+						remove_index_from_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), new_boid_index);
+						push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
+					}
+				}
+
+				state->real_world_counter_seconds -= UPDATE_FREQUENCY;
+
+				if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
+				{
+					SWAP(state->map.new_boids, state->map.old_boids);
+				}
+				else
+				{
+					break;
+				}
 			}
+
+			//
+			// Heat map.
+			//
+
+			SDL_SetRenderDrawColor(program->renderer, 0, 0, 0, 255);
+			SDL_RenderClear(program->renderer);
+
+			FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+			{
+				for (ChunkNode* current_chunk_node = *chunk_node; current_chunk_node; current_chunk_node = current_chunk_node->next_node)
+				{
+					f32 redness = 0.0f;
+					for (IndexBufferNode* node = current_chunk_node->index_buffer_node; node; node = node->next_node)
+					{
+						redness += node->index_count;
+					}
+					redness *= HEATMAP_SENSITIVITY;
+
+					SDL_SetRenderDrawColor(program->renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
+
+					render_fill_rect
+					(
+						program->renderer,
+						(vf2 ( current_chunk_node->x, current_chunk_node->y ) - state->camera_position) * PIXELS_PER_METER * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f,
+						vf2 ( 1.0f, 1.0f ) * PIXELS_PER_METER * state->camera_zoom
+					);
+				}
+			}
+
+			//
+			// Grid.
+			//
+
+			// @TODO@ Works for now. Maybe it can be cleaned up some how?
+			SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
+			FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_WIDTH) / PIXELS_PER_METER / state->camera_zoom) + 1)
+			{
+				f32 x = (pxd_floor(state->camera_position.x - WINDOW_WIDTH / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.x) * state->camera_zoom * PIXELS_PER_METER + WINDOW_WIDTH / 2.0f;
+				render_line(program->renderer, vf2 ( x, 0.0f ), vf2 ( x, WINDOW_HEIGHT ));
+			}
+			FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER / state->camera_zoom) + 1)
+			{
+				f32 y = (pxd_floor(state->camera_position.y - WINDOW_HEIGHT / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.y) * state->camera_zoom * PIXELS_PER_METER + WINDOW_HEIGHT / 2.0f;
+				render_line(program->renderer, vf2 ( 0.0f, y ), vf2 ( WINDOW_WIDTH, y ));
+			}
+
+			//
+			// Boid Rendering.
+			//
+
+			SDL_SetRenderDrawColor(program->renderer, 222, 173, 38, 255);
+
+			FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
+			{
+				vf2 pixel_offset = (new_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
+
+				if (IN_RANGE(pixel_offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(pixel_offset.y, 0.0f, WINDOW_HEIGHT))
+				{
+					vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
+					FOR_ELEMS(point, points)
+					{
+						*point =
+							vf2
+							{
+								BOID_VERTICES[point_index].x * new_boid->direction.x - BOID_VERTICES[point_index].y * new_boid->direction.y,
+								BOID_VERTICES[point_index].x * new_boid->direction.y + BOID_VERTICES[point_index].y * new_boid->direction.x
+							} * state->camera_zoom + pixel_offset;
+					}
+
+					render_lines(program->renderer, points, ARRAY_CAPACITY(points));
+				}
+			}
+
+			SDL_RenderPresent(program->renderer);
+
+			SWAP(state->map.new_boids, state->map.old_boids);
 		}
-
-		SDL_RenderPresent(program->renderer);
-
-		SWAP(state->map.new_boids, state->map.old_boids);
 	}
 }

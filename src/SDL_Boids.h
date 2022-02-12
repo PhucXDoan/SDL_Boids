@@ -35,6 +35,7 @@ constexpr f32 ZOOM_CHANGE_DAMPING               = 0.25f;
 constexpr f32 ZOOM_MINIMUM_SCALE_FACTOR         = 0.5f;
 constexpr f32 ZOOM_MAXIMUM_SCALE_FACTOR         = 4.00f;
 constexpr f32 TIME_STEP_MAXIMUM_SCALE_FACTOR    = 2.0f;
+constexpr f32 UPDATE_FREQUENCY                  = 1.0f / 30.0f; // @TODO@ Frame rate dependence!!
 constexpr vf2 BOID_VERTICES[]                   =
 	{
 		{  4.5f,  0.0f },
@@ -104,4 +105,5 @@ struct State
 	f32              camera_zoom_target;
 	f32              camera_zoom;
 	f32              simulation_time_step;
+	f32              real_world_counter_seconds;
 };

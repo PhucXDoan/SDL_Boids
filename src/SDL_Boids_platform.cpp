@@ -59,39 +59,34 @@ int main(int, char**)
 				program.is_running          = true;
 				program.is_initialized      = false;
 				program.is_going_to_hotload = false;
+				program.delta_seconds       = 0.0f;
 				program.renderer            = window_renderer;
 				program.memory              = reinterpret_cast<byteptr>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 				program.memory_capacity     = MEMORY_CAPACITY;
 
 				u64 performance_count = SDL_GetPerformanceCounter();
-				f32 seconds_passed    = 0.0f;
 
 				while (program.is_running)
 				{
 					u64 new_performance_count = SDL_GetPerformanceCounter();
-					seconds_passed    += static_cast<f32>(new_performance_count - performance_count) / SDL_GetPerformanceFrequency();
-					performance_count  = new_performance_count;
+					program.delta_seconds = static_cast<f32>(new_performance_count - performance_count) / SDL_GetPerformanceFrequency();
+					performance_count     = new_performance_count;
 
 					FILETIME current_program_dll_creation_time = get_program_dll_creation_time();
 					if (CompareFileTime(&current_program_dll_creation_time, &hotloading_data.dll_creation_time))
 					{
 						WIN32_FILE_ATTRIBUTE_DATA attributes_;
-						if (!GetFileAttributesEx(LOCK_FILE_PATH, GetFileExInfoStandard, &attributes_))
-						{
-							program.is_going_to_hotload = true;
-							hotloading_data.update(&program);
-							program.is_going_to_hotload = false;
+						while (GetFileAttributesEx(LOCK_FILE_PATH, GetFileExInfoStandard, &attributes_));
 
-							reload_program_dll(&hotloading_data);
-						}
+						program.is_going_to_hotload = true;
+						hotloading_data.update(&program);
+						program.is_going_to_hotload = false;
+
+						reload_program_dll(&hotloading_data);
 					}
 					else
 					{
-						while (program.is_running && seconds_passed >= UPDATE_FREQUENCY)
-						{
-							hotloading_data.update(&program);
-							seconds_passed -= UPDATE_FREQUENCY;
-						}
+						hotloading_data.update(&program);
 					}
 				}
 			}
