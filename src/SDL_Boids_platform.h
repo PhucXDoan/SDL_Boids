@@ -20,6 +20,7 @@ struct Program
 {
 	bool32        is_running;
 	bool32        is_initialized;
+	bool32        is_going_to_hotload;
 	SDL_Renderer* renderer;
 	byteptr       memory;
 	memsize       memory_capacity;
