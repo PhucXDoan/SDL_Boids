@@ -206,7 +206,7 @@ inline f32 rand_range(u64* seed, f32 min, f32 max)
 inline f32 lerp(f32 a, f32 b, f32 t) { return (1.0f - t) * a + t * b; }
 inline vf2 lerp(vf2 a, vf2 b, f32 t) { return (1.0f - t) * a + t * b; }
 
-void update_boid_directions(State* state, i32 starting_index, i32 count)
+void update_boids(State* state, i32 starting_index, i32 count)
 {
 	FOR_RANGE(boid_index, starting_index, starting_index + count)
 	{
@@ -298,6 +298,8 @@ void update_boid_directions(State* state, i32 starting_index, i32 count)
 		{
 			state->map.new_boids[boid_index].direction = old_boid->direction;
 		}
+
+		state->map.new_boids[boid_index].position = old_boid->position + BOID_VELOCITY * old_boid->direction * state->simulation_time_step;
 	}
 }
 
@@ -307,7 +309,7 @@ int helper_thread_work(void* void_data)
 
 	while (SDL_SemWait(data->activation), !data->state->helper_threads_should_exit)
 	{
-		update_boid_directions(data->state, data->new_boids_offset, BASE_WORKLOAD_FOR_HELPER_THREADS);
+		update_boids(data->state, data->new_boids_offset, BASE_WORKLOAD_FOR_HELPER_THREADS);
 		SDL_SemPost(data->state->completed_work);
 	}
 
@@ -559,7 +561,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			SDL_SemPost(data->activation);
 		}
 
-		update_boid_directions(state, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD);
+		update_boids(state, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD);
 
 		FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
 		{
@@ -569,8 +571,6 @@ extern "C" PROTOTYPE_UPDATE(update)
 		FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
 		{
 			Boid* old_boid = &state->map.old_boids[new_boid_index];
-
-			new_boid->position = old_boid->position + BOID_VELOCITY * old_boid->direction * state->simulation_time_step;
 
 			if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
 			{
