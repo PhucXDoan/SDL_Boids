@@ -6,6 +6,16 @@ inline vf2 polar(f32 rad)
 	return { cosf(rad), sinf(rad) };
 }
 
+inline f32 pxd_arccos(f32 rad)
+{
+	return acosf(rad);
+}
+
+inline vf2 complex_mult(vf2 a, vf2 b)
+{
+	return { a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x };
+}
+
 inline f32 norm(vf2 v)
 {
 	return static_cast<f32>(sqrt(v.x * v.x + v.y * v.y));
@@ -32,6 +42,11 @@ inline constexpr i32 pxd_ceil(f32 f)
 inline constexpr i32 pxd_trunc(f32 f)
 {
 	return static_cast<i32>(f);
+}
+
+inline constexpr i32 pxd_sign(f32 f)
+{
+	return f < 0.0f ? -1 : f > 0.0f ? 1 : 0;
 }
 
 inline f32 signed_unit_curve(f32 a, f32 b, f32 x)
@@ -188,18 +203,6 @@ inline f32 rand_range(u64* seed, f32 min, f32 max)
 	return (rand_u64(seed) % 0xFFFFFFFF / static_cast<f32>(0xFFFFFFFF)) * (max - min);
 }
 
-inline vf2 slerp(vf2 a, vf2 b, f32 step) // @TODO@ SPEEEEEEEEEEEEEEDD!!
-{
-	f32 dot_prod = dot(a, b);
-	f32 angle    = acosf(CLAMP(dot_prod, -1.0f, 1.0f));
-	f32 time     = angle < step ? 1.0f : step / angle;
-
-	return
-		angle > 0.1f // @TODO@ What should the epsilon be here?
-			? normalize((sinf((1.0f - time) * angle) * a + sinf(time * angle) * b) / sinf(angle))
-			: a;
-}
-
 inline f32 lerp(f32 a, f32 b, f32 t) { return (1.0f - t) * a + t * b; }
 inline vf2 lerp(vf2 a, vf2 b, f32 t) { return (1.0f - t) * a + t * b; }
 
@@ -272,10 +275,29 @@ void update_boid_directions(State* state, i32 starting_index, i32 count)
 
 		f32 desired_movement_distance = norm(desired_movement);
 
-		state->map.new_boids[boid_index].direction =
-			desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE
-				? slerp(old_boid->direction, desired_movement / desired_movement_distance, ANGULAR_VELOCITY * state->simulation_time_step)
-				: old_boid->direction;
+		if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
+		{
+			// @TODO@ Still need to figure out the best way to steer boids...
+
+			vf2 desired_direction = desired_movement / desired_movement_distance;
+			f32 step              = ANGULAR_VELOCITY * state->simulation_time_step;
+			f32 angle             = pxd_arccos(CLAMP(dot(old_boid->direction, desired_direction), -1.0f, 1.0f));
+
+			if (angle <= step)
+			{
+				state->map.new_boids[boid_index].direction = desired_direction;
+			}
+			else
+			{
+				vf2 orth = { -old_boid->direction.y, old_boid->direction.x };
+				i32 side = pxd_sign(dot(desired_direction, orth));
+				state->map.new_boids[boid_index].direction = complex_mult(old_boid->direction, polar(step * (side == 0 && desired_direction == -old_boid->direction ? 1.0f : side)));
+			}
+		}
+		else
+		{
+			state->map.new_boids[boid_index].direction = old_boid->direction;
+		}
 	}
 }
 
