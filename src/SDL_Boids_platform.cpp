@@ -45,6 +45,11 @@ int main(int, char**)
 		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
 		ASSERT(!"SDL could not initialize video.");
 	}
+	else if (TTF_Init() < 0)
+	{
+		fprintf(stderr, "TTF_Error: '%s'\n", TTF_GetError());
+		ASSERT(!"SDL_ttf could not initialize.");
+	}
 	else
 	{
 		SDL_Window* window = SDL_CreateWindow("SDL_Boids", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
@@ -107,6 +112,7 @@ int main(int, char**)
 		SDL_DestroyWindow(window);
 	}
 
+	TTF_Quit();
 	SDL_Quit();
 
 	return 0;

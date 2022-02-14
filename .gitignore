@@ -2,3 +2,5 @@ build/
 *.swp
 .vc/
 SDL2/
+lib/
+*.rdbg

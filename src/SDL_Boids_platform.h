@@ -1,6 +1,7 @@
 #pragma once
 #include <stdio.h>
 #include <SDL.h>
+#include <SDL_ttf.h>
 #include "unified.h"
 
 #define kibibytes_of(N) (1024LL *             (N))

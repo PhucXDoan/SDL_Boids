@@ -562,7 +562,6 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 			while (state->real_world_counter_seconds -= UPDATE_FREQUENCY, state->real_world_counter_seconds >= UPDATE_FREQUENCY);
 
-
 			//
 			// Heat map.
 			//
