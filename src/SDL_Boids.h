@@ -90,12 +90,17 @@ struct HelperThreadData
 
 struct State
 {
+	SDL_Cursor*      default_cursor;
+	SDL_Cursor*      grab_cursor;
+	bool32           is_cursor_down;
+	vf2              cursor_position;
 	FC_Font*         font;
 	bool32           helper_threads_should_exit;
 	SDL_sem*         completed_work;
 	HelperThreadData helper_thread_datas[HELPER_THREAD_COUNT];
 	u64              seed;
 	Map              map;
+	vf2              mouse_position;
 	vf2              wasd;
 	vf2              arrow_keys;
 	vf2              camera_velocity_target;

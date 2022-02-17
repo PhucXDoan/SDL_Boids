@@ -359,8 +359,9 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
-	state->seed = 0xBEEFFACE;
-
+	state->is_cursor_down                  = false;
+	state->cursor_position                 = { 0.0f, 0.0f };
+	state->seed                            = 0xBEEFFACE;
 	state->map.arena.base                  = program->memory          + sizeof(State);
 	state->map.arena.size                  = program->memory_capacity - sizeof(State);
 	state->map.arena.used                  = 0;
@@ -398,6 +399,8 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
+	state->default_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+	state->grab_cursor    = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND); // @TODO@ Have a handgrab cursor. This one is ugly.
 	state->font = FC_CreateFont();
 
 	if (!FC_LoadFont(state->font, program->renderer, FONT_FILE_PATH, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL))
@@ -423,6 +426,8 @@ extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
+	SDL_FreeCursor(state->default_cursor);
+	SDL_FreeCursor(state->grab_cursor);
 	FC_FreeFont(state->font);
 
 	state->helper_threads_should_exit = true;
@@ -502,6 +507,17 @@ extern "C" PROTOTYPE_UPDATE(update)
 						} break;
 					}
 				}
+			} break;
+
+			case SDL_MOUSEMOTION:
+			{
+				state->cursor_position = vf2 ( event.motion.x, event.motion.y );
+			} break;
+
+			case SDL_MOUSEBUTTONDOWN:
+			case SDL_MOUSEBUTTONUP:
+			{
+				state->is_cursor_down = event.button.state == SDL_PRESSED;
 			} break;
 		}
 	}
@@ -636,7 +652,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 		}
 
-		FC_Draw(state->font, program->renderer, 5, 5, "FPS : %d", pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)));
+		FC_Draw(state->font, program->renderer, 5, 5, "FPS : %d\nCursor.down : %d\nCursor.x : %f\nCursor.y : %f", pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)), state->is_cursor_down, state->cursor_position.x, state->cursor_position.y);
 
 		SDL_RenderPresent(program->renderer);
 	}
