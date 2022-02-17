@@ -455,7 +455,6 @@ extern "C" PROTOTYPE_UPDATE(update)
 			{
 				boot_down(program);
 				program->is_running = false;
-
 				return;
 			} break;
 
@@ -518,6 +517,15 @@ extern "C" PROTOTYPE_UPDATE(update)
 			case SDL_MOUSEBUTTONUP:
 			{
 				state->is_cursor_down = event.button.state == SDL_PRESSED;
+
+				if (state->is_cursor_down)
+				{
+					SDL_SetCursor(state->grab_cursor);
+				}
+				else
+				{
+					SDL_SetCursor(state->default_cursor);
+				}
 			} break;
 		}
 	}
