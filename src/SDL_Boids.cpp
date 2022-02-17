@@ -361,6 +361,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 
 	state->is_cursor_down                  = false;
 	state->cursor_position                 = { 0.0f, 0.0f };
+	state->last_cursor_click_position      = { 0.0f, 0.0f };
 	state->seed                            = 0xBEEFFACE;
 	state->map.arena.base                  = program->memory          + sizeof(State);
 	state->map.arena.size                  = program->memory_capacity - sizeof(State);
@@ -521,6 +522,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 				if (state->is_cursor_down)
 				{
 					SDL_SetCursor(state->grab_cursor);
+					state->last_cursor_click_position = vf2 ( event.button.x, event.button.y );
 				}
 				else
 				{
@@ -661,8 +663,29 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 		}
 
+		render_fill_rect
+		(
+			program->renderer,
+			{ 180.0f, WINDOW_HEIGHT - 145.0f },
+			{  90.0f, 20.0f }
+		);
+
 		// @TODO@ Accurate way to get FPS.
-		FC_Draw(state->font, program->renderer, 5, 5, "FPS : %d\nCursor.down : %d\nCursor.x : %f\nCursor.y : %f", pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)), state->is_cursor_down, state->cursor_position.x, state->cursor_position.y);
+		FC_Draw
+		(
+			state->font,
+			program->renderer,
+			5,
+			5,
+			"FPS : %d\ncursor_down : %d\ncursor_x : %f\ncursor_y : %f\ncursor_click_x : %f\ncursor_click_y : %f\nBoid Velocity : %f",
+			pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)),
+			state->is_cursor_down,
+			state->cursor_position.x,
+			state->cursor_position.y,
+			state->last_cursor_click_position.x,
+			state->last_cursor_click_position.y,
+			BOID_VELOCITY
+		);
 
 		SDL_RenderPresent(program->renderer);
 	}

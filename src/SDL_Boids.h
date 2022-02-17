@@ -12,7 +12,7 @@
 
 constexpr i32    PIXELS_PER_METER                  = 50;
 constexpr f32    BOID_VELOCITY                     = 1.0f;
-constexpr i32    BOID_AMOUNT                       = 4096;
+constexpr i32    BOID_AMOUNT                       = 1024;
 constexpr f32    BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
 constexpr f32    MINIMUM_RADIUS                    = 0.005f;
 constexpr f32    SEPARATION_WEIGHT                 = 16.0f;
@@ -95,6 +95,7 @@ struct State
 	SDL_Cursor*      grab_cursor;
 	bool32           is_cursor_down;
 	vf2              cursor_position;
+	vf2              last_cursor_click_position;
 	FC_Font*         font;
 	bool32           helper_threads_should_exit;
 	SDL_sem*         completed_work;
