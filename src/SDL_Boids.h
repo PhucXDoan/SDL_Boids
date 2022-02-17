@@ -11,7 +11,6 @@
 // @TODO@ Have a random leader boid.
 
 constexpr i32    PIXELS_PER_METER                  = 50;
-constexpr f32    BOID_VELOCITY                     = 1.0f;
 constexpr i32    BOID_AMOUNT                       = 1024;
 constexpr f32    BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
 constexpr f32    MINIMUM_RADIUS                    = 0.005f;
@@ -36,6 +35,8 @@ constexpr f32    TIME_SCALAR_MAXIMUM_SCALE_FACTOR  = 2.0f;
 constexpr f32    UPDATE_FREQUENCY                  = 1.0f / 60.0f;
 constexpr strlit FONT_FILE_PATH                    = "C:/code/misc/fonts/consola.ttf";
 constexpr bool32 SHOULD_CATCH_UP                   = false;
+constexpr vf2    TESTING_BOX_COORDINATES           = { 180.0f, 124.0f };
+constexpr vf2    TESTING_BOX_DIMENSIONS            = { 90.0f, 20.0f };
 constexpr vf2    BOID_VERTICES[]                   =
 	{
 		{  4.5f,  0.0f },
@@ -113,4 +114,6 @@ struct State
 	f32              camera_zoom;
 	f32              simulation_time_scalar;
 	f32              real_world_counter_seconds;
+	f32              boid_velocity;
+	f32              held_boid_velocity;
 };

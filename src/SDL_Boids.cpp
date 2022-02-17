@@ -319,7 +319,7 @@ void update_boids(State* state, i32 starting_index, i32 count)
 			state->map.new_boids[boid_index].direction = old_boid->direction;
 		}
 
-		state->map.new_boids[boid_index].position = old_boid->position + BOID_VELOCITY * old_boid->direction * state->simulation_time_scalar * UPDATE_FREQUENCY;
+		state->map.new_boids[boid_index].position = old_boid->position + state->boid_velocity * old_boid->direction * state->simulation_time_scalar * UPDATE_FREQUENCY;
 	}
 }
 
@@ -394,6 +394,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 	state->camera_zoom                 = 1.0f;
 	state->simulation_time_scalar      = 1.0f;
 	state->real_world_counter_seconds  = 0.0f;
+	state->boid_velocity               = 1.0f;
 }
 
 extern "C" PROTOTYPE_BOOT_UP(boot_up)
@@ -512,6 +513,17 @@ extern "C" PROTOTYPE_UPDATE(update)
 			case SDL_MOUSEMOTION:
 			{
 				state->cursor_position = vf2 ( event.motion.x, event.motion.y );
+
+				if
+				(
+					state->is_cursor_down &&
+					IN_RANGE(state->last_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
+					IN_RANGE(state->last_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
+				)
+				{
+					state->boid_velocity = state->held_boid_velocity + (state->cursor_position.x - state->last_cursor_click_position.x) / 100.0f;
+					state->boid_velocity = CLAMP(state->boid_velocity, 0.0f, 4.0f);
+				}
 			} break;
 
 			case SDL_MOUSEBUTTONDOWN:
@@ -523,6 +535,16 @@ extern "C" PROTOTYPE_UPDATE(update)
 				{
 					SDL_SetCursor(state->grab_cursor);
 					state->last_cursor_click_position = vf2 ( event.button.x, event.button.y );
+
+
+					if
+					(
+						IN_RANGE(state->last_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
+						IN_RANGE(state->last_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
+					)
+					{
+						state->held_boid_velocity = state->boid_velocity;
+					}
 				}
 				else
 				{
@@ -671,12 +693,10 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 		}
 
-		render_fill_rect
-		(
-			program->renderer,
-			{ 180.0f, WINDOW_HEIGHT - 145.0f },
-			{  90.0f, 20.0f }
-		);
+		{
+			SDL_Rect TESTING_rect = { static_cast<i32>(TESTING_BOX_COORDINATES.x), static_cast<i32>(TESTING_BOX_COORDINATES.y), static_cast<i32>(TESTING_BOX_DIMENSIONS.x), static_cast<i32>(TESTING_BOX_DIMENSIONS.y) };
+			SDL_RenderFillRect(program->renderer, &TESTING_rect);
+		}
 
 		// @TODO@ Accurate way to get FPS.
 		FC_Draw
@@ -685,14 +705,15 @@ extern "C" PROTOTYPE_UPDATE(update)
 			program->renderer,
 			5,
 			5,
-			"FPS : %d\ncursor_down : %d\ncursor_x : %f\ncursor_y : %f\ncursor_click_x : %f\ncursor_click_y : %f\nBoid Velocity : %f",
+			"FPS : %d\ncursor_down : %d\ncursor_x : %f\ncursor_y : %f\ncursor_click_x : %f\ncursor_click_y : %f\nBoid Velocity : %f\nTime Scalar : %f",
 			pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)),
 			state->is_cursor_down,
 			state->cursor_position.x,
 			state->cursor_position.y,
 			state->last_cursor_click_position.x,
 			state->last_cursor_click_position.y,
-			BOID_VELOCITY
+			state->boid_velocity,
+			state->simulation_time_scalar
 		);
 
 		SDL_RenderPresent(program->renderer);
