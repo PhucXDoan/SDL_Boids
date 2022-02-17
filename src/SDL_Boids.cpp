@@ -584,8 +584,9 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 
 			SWAP(state->map.new_boids, state->map.old_boids);
+			state->real_world_counter_seconds -= UPDATE_FREQUENCY;
 		}
-		while (state->real_world_counter_seconds -= UPDATE_FREQUENCY, state->real_world_counter_seconds >= UPDATE_FREQUENCY);
+		while (SHOULD_CATCH_UP && state->real_world_counter_seconds >= UPDATE_FREQUENCY);
 
 		//
 		// Heat map.
@@ -660,6 +661,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 		}
 
+		// @TODO@ Accurate way to get FPS.
 		FC_Draw(state->font, program->renderer, 5, 5, "FPS : %d\nCursor.down : %d\nCursor.x : %f\nCursor.y : %f", pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)), state->is_cursor_down, state->cursor_position.x, state->cursor_position.y);
 
 		SDL_RenderPresent(program->renderer);

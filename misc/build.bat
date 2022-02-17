@@ -1,6 +1,6 @@
 @echo off
 
-set COMMON_COMPILER_FLAGS=-DDEBUG=1 -nologo -std:c++17 -MTd -GR- -EHsc -EHa- -Od -Oi -Z7 -W4 -wd4100 -wd4201 -I W:\lib\SDL2\include\ -I W:\lib\SDL2_ttf\include\ -I W:\lib\SDL_FontCache\
+set COMMON_COMPILER_FLAGS=-DDEBUG=1 -nologo -std:c++17 -MTd -GR- -EHsc -EHa- -Od -Oi -Z7 -W4 -wd4100 -wd4201 -wd4127 -I W:\lib\SDL2\include\ -I W:\lib\SDL2_ttf\include\ -I W:\lib\SDL_FontCache\
 set COMMON_LINKER_FLAGS=-DEBUG:FULL -opt:ref -incremental:no -subsystem:windows W:\lib\SDL2\lib\x64\SDL2.lib W:\lib\SDL2\lib\x64\SDL2main.lib W:\lib\SDL2_ttf\lib\x64\SDL2_ttf.lib shell32.lib
 
 IF NOT EXIST W:\build\ mkdir W:\build\
@@ -31,6 +31,7 @@ pushd W:\build\
 	REM `-W4`                "/W4 displays level 1, level 2, and level 3 warnings, and all level 4 (informational) warnings that aren't off by default."
 	REM `-wd4100`            "'identifier' : unreferenced formal parameter"
 	REM `-wd4201`            "nonstandard extension used : nameless struct/union"
+	REM `-wd4127`            "constant expression in conditional"
 	REM `-I`                 "Adds a directory to the list of directories searched for include files."
 	REM `-DEBUG:FULL`        "The /DEBUG:FULL option moves all private symbol information from individual compilation products (object files and libraries) into a single PDB, and can be the most time-consuming part of the link.
 	REM                       However, the full PDB can be used to debug the executable when no other build products are available, such as when the executable is deployed."

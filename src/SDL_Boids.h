@@ -35,6 +35,7 @@ constexpr f32    TIME_SCALAR_CHANGE_SPEED          = 1.0f;
 constexpr f32    TIME_SCALAR_MAXIMUM_SCALE_FACTOR  = 2.0f;
 constexpr f32    UPDATE_FREQUENCY                  = 1.0f / 60.0f;
 constexpr strlit FONT_FILE_PATH                    = "C:/code/misc/fonts/consola.ttf";
+constexpr bool32 SHOULD_CATCH_UP                   = false;
 constexpr vf2    BOID_VERTICES[]                   =
 	{
 		{  4.5f,  0.0f },
