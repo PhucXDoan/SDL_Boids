@@ -19,7 +19,6 @@ constexpr strlit  LOCK_FILE_PATH             = "W:/build/LOCK.tmp";
 struct Program
 {
 	bool32        is_running;
-	bool32        is_initialized;
 	bool32        is_going_to_hotload;
 	f32           delta_seconds;
 	SDL_Renderer* renderer;
@@ -27,12 +26,24 @@ struct Program
 	memsize       memory_capacity;
 };
 
+#define PROTOTYPE_INITIALIZE(NAME) void NAME(Program* program)
+typedef PROTOTYPE_INITIALIZE(PrototypeInitialize);
+
+#define PROTOTYPE_BOOT_DOWN(NAME) void NAME(Program* program)
+typedef PROTOTYPE_BOOT_DOWN(PrototypeBootDown);
+
+#define PROTOTYPE_BOOT_UP(NAME) void NAME(Program* program)
+typedef PROTOTYPE_BOOT_UP(PrototypeBootUp);
+
 #define PROTOTYPE_UPDATE(NAME) void NAME(Program* program)
 typedef PROTOTYPE_UPDATE(PrototypeUpdate);
 
 struct HotloadingData
 {
-	byteptr          dll;
-	FILETIME         dll_creation_time;
-	PrototypeUpdate* update;
+	byteptr              dll;
+	FILETIME             dll_creation_time;
+	PrototypeInitialize* initialize;
+	PrototypeBootDown*   boot_down;
+	PrototypeBootUp*     boot_up;
+	PrototypeUpdate*     update;
 };

@@ -32,6 +32,9 @@ void reload_program_dll(HotloadingData* hotloading_data)
 
 	hotloading_data->dll               = reinterpret_cast<byteptr>(SDL_LoadObject(PROGRAM_DLL_TEMP_FILE_PATH));
 	hotloading_data->dll_creation_time = get_program_dll_creation_time();
+	hotloading_data->initialize        = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "initialize"));
+	hotloading_data->boot_down         = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "boot_down"));
+	hotloading_data->boot_up           = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "boot_up"));
 	hotloading_data->update            = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "update"));
 }
 
@@ -62,7 +65,6 @@ int main(int, char**)
 			{
 				Program program;
 				program.is_running          = true;
-				program.is_initialized      = false;
 				program.is_going_to_hotload = false;
 				program.delta_seconds       = 0.0f;
 				program.renderer            = window_renderer;
@@ -71,6 +73,8 @@ int main(int, char**)
 
 				u64 performance_count = SDL_GetPerformanceCounter();
 
+				hotloading_data.initialize(&program);
+				hotloading_data.boot_up(&program);
 				while (program.is_running)
 				{
 					u64 new_performance_count = SDL_GetPerformanceCounter();
@@ -83,11 +87,9 @@ int main(int, char**)
 						WIN32_FILE_ATTRIBUTE_DATA attributes_;
 						while (GetFileAttributesEx(LOCK_FILE_PATH, GetFileExInfoStandard, &attributes_));
 
-						program.is_going_to_hotload = true;
-						hotloading_data.update(&program);
-						program.is_going_to_hotload = false;
-
+						hotloading_data.boot_down(&program);
 						reload_program_dll(&hotloading_data);
+						hotloading_data.boot_up(&program);
 					}
 					else
 					{

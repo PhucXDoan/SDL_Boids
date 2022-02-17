@@ -7,7 +7,7 @@ IF NOT EXIST W:\build\ mkdir W:\build\
 pushd W:\build\
 	del *.pdb > NUL 2> NUL
 	echo "LOCK" > LOCK.tmp
-	cl %COMMON_COMPILER_FLAGS% -LD W:\src\SDL_Boids.cpp                           -FmSDL_Boids.map          /link %COMMON_LINKER_FLAGS% -PDB:SDL_Boids_%RANDOM%.pdb -EXPORT:update
+	cl %COMMON_COMPILER_FLAGS% -LD W:\src\SDL_Boids.cpp                           -FmSDL_Boids.map          /link %COMMON_LINKER_FLAGS% -PDB:SDL_Boids_%RANDOM%.pdb -EXPORT:initialize -EXPORT:boot_down -EXPORT:boot_up -EXPORT:update
 	cl %COMMON_COMPILER_FLAGS%     W:\src\SDL_Boids_platform.cpp -FeSDL_Boids.exe -FmSDL_Boids_platform.map /link %COMMON_LINKER_FLAGS%
 	sleep 0.25
 	del LOCK.tmp
