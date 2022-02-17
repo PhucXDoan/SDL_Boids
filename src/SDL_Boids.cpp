@@ -586,9 +586,17 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 
 			SWAP(state->map.new_boids, state->map.old_boids);
-			state->real_world_counter_seconds -= UPDATE_FREQUENCY;
+
+			if (SHOULD_CATCH_UP)
+			{
+				state->real_world_counter_seconds = 0.0f;
+			}
+			else
+			{
+				state->real_world_counter_seconds -= UPDATE_FREQUENCY;
+			}
 		}
-		while (SHOULD_CATCH_UP && state->real_world_counter_seconds >= UPDATE_FREQUENCY);
+		while (state->real_world_counter_seconds >= UPDATE_FREQUENCY);
 
 		//
 		// Heat map.
