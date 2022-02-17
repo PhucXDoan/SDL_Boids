@@ -436,7 +436,11 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 	State* state = reinterpret_cast<State*>(program->memory);
 
 	state->font = FC_CreateFont();
-	FC_LoadFont(state->font, program->renderer, FONT_FILE_PATH, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL);
+
+	if (!FC_LoadFont(state->font, program->renderer, FONT_FILE_PATH, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL))
+	{
+		ASSERT(false);
+	}
 
 	create_helper_threads(state);
 }
