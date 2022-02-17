@@ -22,7 +22,7 @@ struct Program
 	bool32        is_going_to_hotload;
 	f32           delta_seconds;
 	SDL_Renderer* renderer;
-	byteptr       memory;
+	byte*         memory;
 	memsize       memory_capacity;
 };
 
@@ -40,7 +40,7 @@ typedef PROTOTYPE_UPDATE(PrototypeUpdate);
 
 struct HotloadingData
 {
-	byteptr              dll;
+	byte*                dll;
 	FILETIME             dll_creation_time;
 	PrototypeInitialize* initialize;
 	PrototypeBootDown*   boot_down;

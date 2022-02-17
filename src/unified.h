@@ -57,7 +57,7 @@ enum struct NAME : TYPE
 #define DEBUG_NOP               do {} while (false)
 #endif
 
-typedef uint8_t*    byteptr;
+typedef uint8_t     byte;
 typedef uint64_t    memsize;
 typedef const char* strlit;
 typedef int8_t      i8;
@@ -119,14 +119,14 @@ struct vf4
 struct memarena
 {
 	memsize size;
-	byteptr base;
+	byte*   base;
 	memsize used;
 };
 
-internal inline byteptr push_size(memarena* arena, memsize size)
+internal inline byte* push_size(memarena* arena, memsize size)
 {
 	ASSERT(arena->used + size <= arena->size);
-	byteptr allocation = arena->base + arena->used;
+	byte* allocation = arena->base + arena->used;
 	arena->used += size;
 	return allocation;
 }

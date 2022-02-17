@@ -22,7 +22,7 @@ void reload_program_dll(HotloadingData* hotloading_data)
 	SDL_RWops* src      = SDL_RWFromFile(PROGRAM_DLL_FILE_PATH     , "r");
 	SDL_RWops* des      = SDL_RWFromFile(PROGRAM_DLL_TEMP_FILE_PATH, "w");
 	i64        src_size = SDL_RWsize(src);
-	byteptr    buffer   = reinterpret_cast<byteptr>(SDL_calloc(1, src_size));
+	byte*      buffer   = reinterpret_cast<byte*>(SDL_calloc(1, src_size));
 
 	SDL_RWread (src, buffer, src_size, 1);
 	SDL_RWwrite(des, buffer, src_size, 1);
@@ -30,7 +30,7 @@ void reload_program_dll(HotloadingData* hotloading_data)
 	SDL_RWclose(des);
 	SDL_free(buffer);
 
-	hotloading_data->dll               = reinterpret_cast<byteptr>(SDL_LoadObject(PROGRAM_DLL_TEMP_FILE_PATH));
+	hotloading_data->dll               = reinterpret_cast<byte*>(SDL_LoadObject(PROGRAM_DLL_TEMP_FILE_PATH));
 	hotloading_data->dll_creation_time = get_program_dll_creation_time();
 	hotloading_data->initialize        = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "initialize"));
 	hotloading_data->boot_down         = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "boot_down"));
@@ -68,7 +68,7 @@ int main(int, char**)
 				program.is_going_to_hotload = false;
 				program.delta_seconds       = 0.0f;
 				program.renderer            = window_renderer;
-				program.memory              = reinterpret_cast<byteptr>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+				program.memory              = reinterpret_cast<byte*>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 				program.memory_capacity     = MEMORY_CAPACITY;
 
 				u64 performance_count = SDL_GetPerformanceCounter();
