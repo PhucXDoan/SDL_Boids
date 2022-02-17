@@ -91,7 +91,6 @@ struct HelperThreadData
 struct State
 {
 	FC_Font*         font;
-	bool32           helper_threads_exists;
 	bool32           helper_threads_should_exit;
 	SDL_sem*         completed_work;
 	HelperThreadData helper_thread_datas[HELPER_THREAD_COUNT];

@@ -355,43 +355,6 @@ void render_fill_rect(SDL_Renderer* renderer, vf2 bottom_left, vf2 dimensions)
 	SDL_RenderFillRect(renderer, &rect);
 }
 
-void create_helper_threads(State* state)
-{
-	ASSERT(!state->helper_threads_exists);
-
-	state->helper_threads_exists      = true;
-	state->helper_threads_should_exit = false;
-	state->completed_work             = SDL_CreateSemaphore(0);
-
-	FOR_ELEMS(data, state->helper_thread_datas)
-	{
-		data->activation       = SDL_CreateSemaphore(0);
-		data->state            = state;
-		data->new_boids_offset = BASE_WORKLOAD_FOR_HELPER_THREADS * data_index;
-		data->helper_thread    = SDL_CreateThread(helper_thread_work, "`helper_thread_work`", reinterpret_cast<void*>(data));
-
-		DEBUG_printf("Created helper thread (#%d)\n", data_index);
-	}
-}
-
-void destroy_helper_threads(State* state)
-{
-	ASSERT(state->helper_threads_exists);
-
-	state->helper_threads_exists      = false;
-	state->helper_threads_should_exit = true;
-
-	FOR_ELEMS(data, state->helper_thread_datas)
-	{
-		SDL_SemPost(data->activation);
-		SDL_WaitThread(data->helper_thread, 0);
-		SDL_DestroySemaphore(data->activation);
-		DEBUG_printf("Freed helper thread (#%d)\n", data_index);
-	}
-
-	SDL_DestroySemaphore(state->completed_work);
-}
-
 extern "C" PROTOTYPE_INITIALIZE(initialize)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
@@ -442,7 +405,18 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 		ASSERT(false);
 	}
 
-	create_helper_threads(state);
+	state->helper_threads_should_exit = false;
+	state->completed_work             = SDL_CreateSemaphore(0);
+
+	FOR_ELEMS(data, state->helper_thread_datas)
+	{
+		data->activation       = SDL_CreateSemaphore(0);
+		data->state            = state;
+		data->new_boids_offset = BASE_WORKLOAD_FOR_HELPER_THREADS * data_index;
+		data->helper_thread    = SDL_CreateThread(helper_thread_work, "`helper_thread_work`", reinterpret_cast<void*>(data));
+
+		DEBUG_printf("Created helper thread (#%d)\n", data_index);
+	}
 }
 
 extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
@@ -451,7 +425,17 @@ extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 
 	FC_FreeFont(state->font);
 
-	destroy_helper_threads(state);
+	state->helper_threads_should_exit = true;
+
+	FOR_ELEMS(data, state->helper_thread_datas)
+	{
+		SDL_SemPost(data->activation);
+		SDL_WaitThread(data->helper_thread, 0);
+		SDL_DestroySemaphore(data->activation);
+		DEBUG_printf("Freed helper thread (#%d)\n", data_index);
+	}
+
+	SDL_DestroySemaphore(state->completed_work);
 }
 
 extern "C" PROTOTYPE_UPDATE(update)
@@ -464,7 +448,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 		{
 			case SDL_QUIT:
 			{
-				destroy_helper_threads(state);
+				boot_down(program);
 				program->is_running = false;
 
 				return;
