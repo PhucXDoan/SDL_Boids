@@ -39,6 +39,11 @@ inline constexpr i32 pxd_ceil(f32 f)
 	return -pxd_floor(-f);
 }
 
+inline constexpr i32 pxd_round(f32 f)
+{
+	return pxd_floor(f + 0.5f);
+}
+
 inline constexpr i32 pxd_trunc(f32 f)
 {
 	return static_cast<i32>(f);
@@ -430,12 +435,17 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
+	state->font = FC_CreateFont();
+	FC_LoadFont(state->font, program->renderer, FONT_FILE_PATH, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL);
+
 	create_helper_threads(state);
 }
 
 extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
+
+	FC_FreeFont(state->font);
 
 	destroy_helper_threads(state);
 }
@@ -637,6 +647,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 				render_lines(program->renderer, points, ARRAY_CAPACITY(points));
 			}
 		}
+
+		FC_Draw(state->font, program->renderer, 5, 5, "FPS : %d", pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)));
 
 		SDL_RenderPresent(program->renderer);
 	}

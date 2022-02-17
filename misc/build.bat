@@ -1,6 +1,6 @@
 @echo off
 
-set COMMON_COMPILER_FLAGS=-DDEBUG=1 -nologo -std:c++17 -MTd -GR- -EHsc -EHa- -Od -Oi -Z7 -W4 -wd4100 -wd4201 -I W:\lib\SDL2\include\ -I W:\lib\SDL2_ttf\include\
+set COMMON_COMPILER_FLAGS=-DDEBUG=1 -nologo -std:c++17 -MTd -GR- -EHsc -EHa- -Od -Oi -Z7 -W4 -wd4100 -wd4201 -I W:\lib\SDL2\include\ -I W:\lib\SDL2_ttf\include\ -I W:\lib\SDL_FontCache\
 set COMMON_LINKER_FLAGS=-DEBUG:FULL -opt:ref -incremental:no -subsystem:windows W:\lib\SDL2\lib\x64\SDL2.lib W:\lib\SDL2\lib\x64\SDL2main.lib W:\lib\SDL2_ttf\lib\x64\SDL2_ttf.lib shell32.lib
 
 IF NOT EXIST W:\build\ mkdir W:\build\

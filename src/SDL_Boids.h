@@ -6,37 +6,36 @@
 
 // @TODO@ Render boids using textures?
 // @TODO@ Should resizing of window be allowed?
-// @TODO@ Movable camera.
-// @TODO@ Zooming.
 // @TODO@ GUI.
 // @TODO@ Non-Euclidan geometry.
 // @TODO@ Have a random leader boid.
 
-constexpr i32 PIXELS_PER_METER                  = 50;
-constexpr f32 BOID_VELOCITY                     = 1.0f;
-constexpr i32 BOID_AMOUNT                       = 4096;
-constexpr f32 BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
-constexpr f32 MINIMUM_RADIUS                    = 0.005f;
-constexpr f32 SEPARATION_WEIGHT                 = 16.0f;
-constexpr f32 ALIGNMENT_WEIGHT                  = 4.0f;
-constexpr f32 COHESION_WEIGHT                   = 8.0f;
-constexpr f32 BORDER_WEIGHT                     = 32.0f;
-constexpr f32 ANGULAR_VELOCITY                  = 1.5f;
-constexpr f32 MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.01f;
-constexpr f32 BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
-constexpr f32 BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
-constexpr f32 HEATMAP_SENSITIVITY               = 8.0f;
-constexpr i32 HELPER_THREAD_COUNT               = 4;
-constexpr f32 CAMERA_VELOCITY                   = 8.0f;
-constexpr f32 CAMERA_ACCELERATION               = 64.0f;
-constexpr f32 ZOOM_VELOCITY                     = 0.75f;
-constexpr f32 ZOOM_ACCELERATION                 = 8.0f;
-constexpr f32 ZOOM_MINIMUM_SCALE_FACTOR         = 0.5f;
-constexpr f32 ZOOM_MAXIMUM_SCALE_FACTOR         = 4.00f;
-constexpr f32 TIME_SCALAR_CHANGE_SPEED          = 0.5f;
-constexpr f32 TIME_SCALAR_MAXIMUM_SCALE_FACTOR  = 2.0f;
-constexpr f32 UPDATE_FREQUENCY                  = 1.0f / 60.0f;
-constexpr vf2 BOID_VERTICES[]                   =
+constexpr i32    PIXELS_PER_METER                  = 50;
+constexpr f32    BOID_VELOCITY                     = 1.0f;
+constexpr i32    BOID_AMOUNT                       = 4096;
+constexpr f32    BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
+constexpr f32    MINIMUM_RADIUS                    = 0.005f;
+constexpr f32    SEPARATION_WEIGHT                 = 16.0f;
+constexpr f32    ALIGNMENT_WEIGHT                  = 4.0f;
+constexpr f32    COHESION_WEIGHT                   = 8.0f;
+constexpr f32    BORDER_WEIGHT                     = 32.0f;
+constexpr f32    ANGULAR_VELOCITY                  = 1.5f;
+constexpr f32    MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.01f;
+constexpr f32    BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
+constexpr f32    BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
+constexpr f32    HEATMAP_SENSITIVITY               = 8.0f;
+constexpr i32    HELPER_THREAD_COUNT               = 4;
+constexpr f32    CAMERA_VELOCITY                   = 8.0f;
+constexpr f32    CAMERA_ACCELERATION               = 64.0f;
+constexpr f32    ZOOM_VELOCITY                     = 0.75f;
+constexpr f32    ZOOM_ACCELERATION                 = 8.0f;
+constexpr f32    ZOOM_MINIMUM_SCALE_FACTOR         = 0.5f;
+constexpr f32    ZOOM_MAXIMUM_SCALE_FACTOR         = 4.00f;
+constexpr f32    TIME_SCALAR_CHANGE_SPEED          = 1.0f;
+constexpr f32    TIME_SCALAR_MAXIMUM_SCALE_FACTOR  = 2.0f;
+constexpr f32    UPDATE_FREQUENCY                  = 1.0f / 60.0f;
+constexpr strlit FONT_FILE_PATH                    = "C:/code/misc/fonts/consola.ttf";
+constexpr vf2    BOID_VERTICES[]                   =
 	{
 		{  4.5f,  0.0f },
 		{ -4.5f,  3.0f },
@@ -91,6 +90,7 @@ struct HelperThreadData
 
 struct State
 {
+	FC_Font*         font;
 	bool32           helper_threads_exists;
 	bool32           helper_threads_should_exit;
 	SDL_sem*         completed_work;

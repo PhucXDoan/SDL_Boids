@@ -4,6 +4,11 @@
 #include <SDL_ttf.h>
 #include "unified.h"
 
+#pragma warning(push, 0)
+#pragma warning(disable : 4701 4702)
+#include "SDL_FontCache.c"
+#pragma warning(pop)
+
 #define kibibytes_of(N) (1024LL *             (N))
 #define mebibytes_of(N) (1024LL * kibibytes_of(N))
 #define gibibytes_of(N) (1024LL * mebibytes_of(N))
