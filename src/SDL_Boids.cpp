@@ -410,17 +410,20 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 		ASSERT(false);
 	}
 
-	state->helper_threads_should_exit = false;
-	state->completed_work             = SDL_CreateSemaphore(0);
-
-	FOR_ELEMS(data, state->helper_thread_datas)
+	if (USE_HELPER_THREADS)
 	{
-		data->activation       = SDL_CreateSemaphore(0);
-		data->state            = state;
-		data->new_boids_offset = BASE_WORKLOAD_FOR_HELPER_THREADS * data_index;
-		data->helper_thread    = SDL_CreateThread(helper_thread_work, "`helper_thread_work`", reinterpret_cast<void*>(data));
+		state->helper_threads_should_exit = false;
+		state->completed_work             = SDL_CreateSemaphore(0);
 
-		DEBUG_printf("Created helper thread (#%d)\n", data_index);
+		FOR_ELEMS(data, state->helper_thread_datas)
+		{
+			data->activation       = SDL_CreateSemaphore(0);
+			data->state            = state;
+			data->new_boids_offset = BASE_WORKLOAD_FOR_HELPER_THREADS * data_index;
+			data->helper_thread    = SDL_CreateThread(helper_thread_work, "`helper_thread_work`", reinterpret_cast<void*>(data));
+
+			DEBUG_printf("Created helper thread (#%d)\n", data_index);
+		}
 	}
 }
 
@@ -432,17 +435,19 @@ extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 	SDL_FreeCursor(state->grab_cursor);
 	FC_FreeFont(state->font);
 
-	state->helper_threads_should_exit = true;
-
-	FOR_ELEMS(data, state->helper_thread_datas)
+	if (USE_HELPER_THREADS)
 	{
-		SDL_SemPost(data->activation);
-		SDL_WaitThread(data->helper_thread, 0);
-		SDL_DestroySemaphore(data->activation);
-		DEBUG_printf("Freed helper thread (#%d)\n", data_index);
-	}
+		state->helper_threads_should_exit = true;
+		FOR_ELEMS(data, state->helper_thread_datas)
+		{
+			SDL_SemPost(data->activation);
+			SDL_WaitThread(data->helper_thread, 0);
+			SDL_DestroySemaphore(data->activation);
+			DEBUG_printf("Freed helper thread (#%d)\n", data_index);
+		}
 
-	SDL_DestroySemaphore(state->completed_work);
+		SDL_DestroySemaphore(state->completed_work);
+	}
 }
 
 extern "C" PROTOTYPE_UPDATE(update)
@@ -602,16 +607,23 @@ extern "C" PROTOTYPE_UPDATE(update)
 			state->simulation_time_scalar += state->arrow_keys.x * TIME_SCALAR_CHANGE_SPEED * UPDATE_FREQUENCY;
 			state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, TIME_SCALAR_MAXIMUM_SCALE_FACTOR);
 
-			FOR_ELEMS(data, state->helper_thread_datas)
+			if (USE_HELPER_THREADS)
 			{
-				SDL_SemPost(data->activation);
+				FOR_ELEMS(data, state->helper_thread_datas)
+				{
+					SDL_SemPost(data->activation);
+				}
+
+				update_boids(state, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD);
+
+				FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
+				{
+					SDL_SemWait(state->completed_work);
+				}
 			}
-
-			update_boids(state, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD);
-
-			FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
+			else
 			{
-				SDL_SemWait(state->completed_work);
+				update_boids(state, 0, BOID_AMOUNT);
 			}
 
 			FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)

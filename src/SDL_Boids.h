@@ -11,7 +11,7 @@
 // @TODO@ Have a random leader boid.
 
 constexpr i32    PIXELS_PER_METER                  = 50;
-constexpr i32    BOID_AMOUNT                       = 4096;
+constexpr i32    BOID_AMOUNT                       = 3000;
 constexpr f32    BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
 constexpr f32    MINIMUM_RADIUS                    = 0.005f;
 constexpr f32    SEPARATION_WEIGHT                 = 16.0f;
@@ -23,6 +23,7 @@ constexpr f32    MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.01f;
 constexpr f32    BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
 constexpr f32    BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
 constexpr f32    HEATMAP_SENSITIVITY               = 8.0f;
+constexpr bool32 USE_HELPER_THREADS                = false; // @TODO@ This is necessary as it's not possible to set `HELPER_THREADS_COUNT` to 0 as of now.
 constexpr i32    HELPER_THREAD_COUNT               = 4;
 constexpr f32    CAMERA_VELOCITY                   = 8.0f;
 constexpr f32    CAMERA_ACCELERATION               = 64.0f;
