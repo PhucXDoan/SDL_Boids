@@ -59,7 +59,7 @@ struct Boid
 
 struct IndexBufferNode
 {
-	i32              index_buffer[32];
+	i32              index_buffer[256];
 	i32              index_count;
 	IndexBufferNode* next_node;
 };

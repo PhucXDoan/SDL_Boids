@@ -49,6 +49,11 @@ inline constexpr i32 pxd_trunc(f32 f)
 	return static_cast<i32>(f);
 }
 
+inline constexpr i32 pxd_abs(i32 x)
+{
+	return x < 0 ? -x : x;
+}
+
 inline constexpr i32 pxd_sign(f32 f)
 {
 	return f < 0.0f ? -1 : f > 0.0f ? 1 : 0;
@@ -90,7 +95,7 @@ IndexBufferNode* allocate_index_buffer_node(Map* map)
 ChunkNode** find_chunk_node(Map* map, i32 x, i32 y)
 {
 	// @TODO@ Better hash function.
-	i32         hash       = (x * 7 + y * 13) % ARRAY_CAPACITY(map->chunk_node_hash_table);
+	i32         hash       = pxd_abs(x * 7 + y * 13) % ARRAY_CAPACITY(map->chunk_node_hash_table);
 	ChunkNode** chunk_node = &map->chunk_node_hash_table[hash];
 
 	while (*chunk_node && ((*chunk_node)->x != x || (*chunk_node)->y != y))
@@ -563,7 +568,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
 	{
-		constexpr i32 PROFILING_MAX_PROFILE_COUNT           = 32;
+		constexpr i32 PROFILING_MAX_PROFILE_COUNT           = 256;
 		persist   i32 PROFILING_profile_counter             = 0;
 		persist   u64 PROFILING_boid_update_profile_average = 0;
 		persist   u64 PROFILING_render_profile_average      = 0;
