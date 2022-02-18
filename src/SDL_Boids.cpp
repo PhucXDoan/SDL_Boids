@@ -558,6 +558,23 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
 	{
+		#if 0
+		constexpr i32 TEMP_MAX_PROFILE_COUNT       = 32;
+		persist   i32 TEMP_profile_counter         = 0;
+		persist   u64 TEMP_main_update_profile_sum = 0;
+
+		if (TEMP_profile_counter >= TEMP_MAX_PROFILE_COUNT)
+		{
+			DEBUG_printf("Average main_update_profile : %llu\n", TEMP_main_update_profile_sum / TEMP_MAX_PROFILE_COUNT);
+			TEMP_profile_counter         = 0;
+			TEMP_main_update_profile_sum = 0;
+		}
+
+		++TEMP_profile_counter;
+
+		u64 TEMP_main_update_profile = SDL_GetPerformanceCounter(); // @STICKY@ START OF MAIN UPDATE PROFILE //
+		#endif
+
 		do
 		{
 			state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * CAMERA_VELOCITY : vf2 { 0.0f, 0.0f };
@@ -611,14 +628,18 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 			if (SHOULD_CATCH_UP)
 			{
-				state->real_world_counter_seconds = 0.0f;
+				state->real_world_counter_seconds -= UPDATE_FREQUENCY;
 			}
 			else
 			{
-				state->real_world_counter_seconds -= UPDATE_FREQUENCY;
+				state->real_world_counter_seconds = 0.0f;
 			}
 		}
 		while (state->real_world_counter_seconds >= UPDATE_FREQUENCY);
+
+		#if 0
+		TEMP_main_update_profile_sum += SDL_GetPerformanceCounter() - TEMP_main_update_profile; // @STICKY@ END OF MAIN UPDATE PROFILE //
+		#endif
 
 		//
 		// Heat map.
