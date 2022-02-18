@@ -558,22 +558,23 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
 	{
-		#if 0
-		constexpr i32 TEMP_MAX_PROFILE_COUNT       = 32;
-		persist   i32 TEMP_profile_counter         = 0;
-		persist   u64 TEMP_main_update_profile_sum = 0;
+		constexpr i32 PROFILING_MAX_PROFILE_COUNT           = 32;
+		persist   i32 PROFILING_profile_counter             = 0;
+		persist   u64 PROFILING_boid_update_profile_average = 0;
+		persist   u64 PROFILING_render_profile_average      = 0;
+		persist   u64 PROFILING_boid_update_profile_sum     = 0;
+		persist   u64 PROFILING_render_profile_sum          = 0;
 
-		if (TEMP_profile_counter >= TEMP_MAX_PROFILE_COUNT)
+		if (PROFILING_profile_counter >= PROFILING_MAX_PROFILE_COUNT)
 		{
-			DEBUG_printf("Average main_update_profile : %llu\n", TEMP_main_update_profile_sum / TEMP_MAX_PROFILE_COUNT);
-			TEMP_profile_counter         = 0;
-			TEMP_main_update_profile_sum = 0;
+			PROFILING_boid_update_profile_average = PROFILING_boid_update_profile_sum / PROFILING_MAX_PROFILE_COUNT;
+			PROFILING_render_profile_average      = PROFILING_render_profile_sum / PROFILING_MAX_PROFILE_COUNT;
+			PROFILING_profile_counter         = 0;
+			PROFILING_boid_update_profile_sum = 0;
+			PROFILING_render_profile_sum      = 0;
 		}
 
-		++TEMP_profile_counter;
-
-		u64 TEMP_main_update_profile = SDL_GetPerformanceCounter(); // @STICKY@ START OF MAIN UPDATE PROFILE //
-		#endif
+		u64 PROFILING_boid_update_profile = SDL_GetPerformanceCounter(); // @STICKY@ START OF MAIN UPDATE PROFILE //
 
 		do
 		{
@@ -637,9 +638,9 @@ extern "C" PROTOTYPE_UPDATE(update)
 		}
 		while (state->real_world_counter_seconds >= UPDATE_FREQUENCY);
 
-		#if 0
-		TEMP_main_update_profile_sum += SDL_GetPerformanceCounter() - TEMP_main_update_profile; // @STICKY@ END OF MAIN UPDATE PROFILE //
-		#endif
+		PROFILING_boid_update_profile_sum += SDL_GetPerformanceCounter() - PROFILING_boid_update_profile; // @STICKY@ END OF MAIN UPDATE PROFILE //
+
+		u64 PROFILING_render_profile = SDL_GetPerformanceCounter(); // @STICKY@ START OF RENDER PROFILE //
 
 		//
 		// Heat map.
@@ -726,7 +727,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			program->renderer,
 			5,
 			5,
-			"FPS : %d\ncursor_down : %d\ncursor_x : %f\ncursor_y : %f\ncursor_click_x : %f\ncursor_click_y : %f\nBoid Velocity : %f\nTime Scalar : %f",
+			"FPS : %d\ncursor_down : %d\ncursor_x : %f\ncursor_y : %f\ncursor_click_x : %f\ncursor_click_y : %f\nBoid Velocity : %f\nTime Scalar : %f\nAverage boid update profile : %llu\nAverage render profile      : %llu\nBoid update / render        : %f",
 			pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)),
 			state->is_cursor_down,
 			state->cursor_position.x,
@@ -734,9 +735,16 @@ extern "C" PROTOTYPE_UPDATE(update)
 			state->last_cursor_click_position.x,
 			state->last_cursor_click_position.y,
 			state->boid_velocity,
-			state->simulation_time_scalar
+			state->simulation_time_scalar,
+			PROFILING_boid_update_profile_average,
+			PROFILING_render_profile_average,
+			static_cast<f64>(PROFILING_boid_update_profile_average) / PROFILING_render_profile_average
 		);
 
 		SDL_RenderPresent(program->renderer);
+
+		PROFILING_render_profile_sum += SDL_GetPerformanceCounter() - PROFILING_render_profile; // @STICKY@ END OF RENDER PROFILE //
+
+		++PROFILING_profile_counter;
 	}
 }
