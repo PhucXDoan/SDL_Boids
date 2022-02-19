@@ -1,6 +1,7 @@
 #pragma once
 #include <stdio.h>
 #include <SDL.h>
+#include <immintrin.h>
 #include "unified.h"
 #include "SDL_Boids_platform.h"
 
