@@ -287,8 +287,17 @@ void update_boids(State* state, i32 starting_index, i32 count)
 
 		if (neighboring_boid_count)
 		{
+			/* @NOTE@
+				Making a `__m256` through:
+					brace initialization takes 29 instructions,
+					inlined `_mm256_set_ps` takes 16 instructions,
+					and with global `const` of `PACKED_COEFFICIENTS` takes 14 instructions.
+				Instructions as in how long the `if` statement was to run.
+					:: PXD (2022, Feb. 19)
+			*/
+
 			packed_factors = _mm256_div_ps(packed_factors, _mm256_set1_ps(static_cast<f32>(neighboring_boid_count)));
-			packed_factors = _mm256_mul_ps(packed_factors, _mm256_set_ps(0.0f, 0.0f, COHESION_WEIGHT, COHESION_WEIGHT, ALIGNMENT_WEIGHT, ALIGNMENT_WEIGHT, SEPARATION_WEIGHT * BOID_NEIGHBORHOOD_RADIUS, SEPARATION_WEIGHT * BOID_NEIGHBORHOOD_RADIUS));
+			packed_factors = _mm256_mul_ps(packed_factors, PACKED_COEFFICIENTS);
 		}
 
 		// @TODO@ The extraction of floats here might be Windows specific.
@@ -408,7 +417,7 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 
 	state->default_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
 	state->grab_cursor    = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND); // @TODO@ Have a handgrab cursor. This one is ugly.
-	state->font = FC_CreateFont();
+	state->font           = FC_CreateFont();
 
 	if (!FC_LoadFont(state->font, program->renderer, FONT_FILE_PATH, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL))
 	{
