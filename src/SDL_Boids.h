@@ -95,9 +95,9 @@ struct Map
 struct State;
 struct HelperThreadData
 {
+	i32          index;
 	SDL_sem*     activation;
 	State*       state;
-	i32          new_boids_offset;
 	SDL_Thread*  helper_thread;
 };
 
