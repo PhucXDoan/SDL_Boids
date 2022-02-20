@@ -291,13 +291,13 @@ void update_boids(State* state, i32 starting_index, i32 count)
 				Making a `__m256` through:
 					brace initialization takes 29 instructions,
 					inlined `_mm256_set_ps` takes 16 instructions,
-					and with global `const` of `PACKED_COEFFICIENTS` takes 14 instructions.
+					with global `const` of `PACKED_COEFFICIENTS` takes 14 instructions,
+					inlined averaging takes 12 instructions
 				Instructions as in how long the `if` statement was to run.
 					:: PXD (2022, Feb. 19)
 			*/
 
-			packed_factors = _mm256_div_ps(packed_factors, _mm256_set1_ps(static_cast<f32>(neighboring_boid_count)));
-			packed_factors = _mm256_mul_ps(packed_factors, PACKED_COEFFICIENTS);
+			packed_factors = _mm256_mul_ps(_mm256_div_ps(packed_factors, _mm256_set1_ps(static_cast<f32>(neighboring_boid_count))), PACKED_COEFFICIENTS);
 		}
 
 		// @TODO@ The extraction of floats here might be Windows specific.
@@ -405,7 +405,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 	state->camera_position             = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / PIXELS_PER_METER / 2.0f;
 	state->camera_zoom_velocity_target = 0.0f;
 	state->camera_zoom_velocity        = 0.0f;
-	state->camera_zoom                 = 1.0f;
+	state->camera_zoom                 = 0.1f;
 	state->simulation_time_scalar      = 1.0f;
 	state->real_world_counter_seconds  = 0.0f;
 	state->boid_velocity               = 1.0f;
@@ -577,7 +577,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
 	{
-		constexpr i32 PROFILING_MAX_PROFILE_COUNT           = 256;
+		constexpr i32 PROFILING_MAX_PROFILE_COUNT           = 1 << 14;
 		persist   i32 PROFILING_profile_counter             = 0;
 		persist   u64 PROFILING_boid_update_profile_average = 0;
 		persist   u64 PROFILING_render_profile_average      = 0;
