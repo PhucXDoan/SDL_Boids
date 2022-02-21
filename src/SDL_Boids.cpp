@@ -164,7 +164,7 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 	{
 		FOR_ELEMS(other_index, (*current_index_buffer_node)->index_buffer, (*current_index_buffer_node)->index_count)
 		{
-			if (*other_index == index)
+			if (other_index == index)
 			{
 				is_hunting = false;
 				--(*current_index_buffer_node)->index_count;
@@ -255,19 +255,19 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 	{
 		FOR_ELEMS(boid_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
 		{
-			Boid*  old_boid               = &state->map.old_boids[*boid_index];
+			Boid*  old_boid               = &state->map.old_boids[boid_index];
 			__m256 packed_factors         = _mm256_set1_ps(0.0f);
 			i32    neighboring_boid_count = 0;
 
 			FOR_ELEMS(surrounding_index_buffer_node, surrounding_index_buffer_nodes)
 			{
-				for (IndexBufferNode* other_current_index_buffer_node = *surrounding_index_buffer_node; other_current_index_buffer_node; other_current_index_buffer_node = other_current_index_buffer_node->next_node)
+				for (IndexBufferNode* other_current_index_buffer_node = surrounding_index_buffer_node; other_current_index_buffer_node; other_current_index_buffer_node = other_current_index_buffer_node->next_node)
 				{
 					FOR_ELEMS(other_boid_index, other_current_index_buffer_node->index_buffer, other_current_index_buffer_node->index_count)
 					{
-						if (*other_boid_index != *boid_index)
+						if (other_boid_index != boid_index)
 						{
-							vf2 to_other          = state->map.old_boids[*other_boid_index].position - old_boid->position;
+							vf2 to_other          = state->map.old_boids[other_boid_index].position - old_boid->position;
 							f32 distance_to_other = norm(to_other);
 
 							if (IN_RANGE(distance_to_other, MINIMUM_RADIUS, BOID_NEIGHBORHOOD_RADIUS))
@@ -282,7 +282,7 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 										(
 											0.0f, 0.0f,
 											to_other.y, to_other.x,
-											state->map.old_boids[*other_boid_index].direction.y, state->map.old_boids[*other_boid_index].direction.x,
+											state->map.old_boids[other_boid_index].direction.y, state->map.old_boids[other_boid_index].direction.x,
 											-to_other.y / distance_to_other, -to_other.x / distance_to_other
 										)
 									);
@@ -326,21 +326,21 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 
 				if (angle <= step)
 				{
-					state->map.new_boids[*boid_index].direction = desired_direction;
+					state->map.new_boids[boid_index].direction = desired_direction;
 				}
 				else
 				{
 					vf2 orth = { -old_boid->direction.y, old_boid->direction.x };
 					i32 side = pxd_sign(dot(desired_direction, orth));
-					state->map.new_boids[*boid_index].direction = complex_mult(old_boid->direction, polar(step * (side == 0 && desired_direction == -old_boid->direction ? 1.0f : side)));
+					state->map.new_boids[boid_index].direction = complex_mult(old_boid->direction, polar(step * (side == 0 && desired_direction == -old_boid->direction ? 1.0f : side)));
 				}
 			}
 			else
 			{
-				state->map.new_boids[*boid_index].direction = old_boid->direction;
+				state->map.new_boids[boid_index].direction = old_boid->direction;
 			}
 
-			state->map.new_boids[*boid_index].position = old_boid->position + state->boid_velocity * old_boid->direction * state->simulation_time_scalar * UPDATE_FREQUENCY;
+			state->map.new_boids[boid_index].position = old_boid->position + state->boid_velocity * old_boid->direction * state->simulation_time_scalar * UPDATE_FREQUENCY;
 		}
 
 		current_index_buffer_node = current_index_buffer_node->next_node;
@@ -377,7 +377,7 @@ void render_lines(SDL_Renderer* renderer, vf2* points, i32 points_capacity)
 {
 	FOR_ELEMS(point, points, points_capacity - 1)
 	{
-		render_line(renderer, *point, points[point_index + 1]);
+		render_line(renderer, point, points[point_index + 1]);
 	}
 }
 
@@ -401,13 +401,13 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 	state->map.available_index_buffer_node = 0;
 	state->map.available_chunk_node        = 0;
 
-	FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+	FOR_ELEMS_PTR(chunk_node, state->map.chunk_node_hash_table)
 	{
 		*chunk_node = 0;
 	}
 
 	state->map.old_boids = PUSH(&state->map.arena, Boid, BOID_AMOUNT);
-	FOR_ELEMS(old_boid, state->map.old_boids, BOID_AMOUNT)
+	FOR_ELEMS_PTR(old_boid, state->map.old_boids, BOID_AMOUNT)
 	{
 		old_boid->direction = polar(rand_range(&state->seed, 0.0f, TAU));
 		old_boid->position  = { rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_WIDTH) / PIXELS_PER_METER), rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER) };
@@ -447,7 +447,7 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 		state->helper_threads_should_exit = false;
 		state->completed_work             = SDL_CreateSemaphore(0);
 
-		FOR_ELEMS(data, state->helper_thread_datas)
+		FOR_ELEMS_PTR(data, state->helper_thread_datas)
 		{
 			data->index            = data_index;
 			data->activation       = SDL_CreateSemaphore(0);
@@ -472,9 +472,9 @@ extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 		state->helper_threads_should_exit = true;
 		FOR_ELEMS(data, state->helper_thread_datas)
 		{
-			SDL_SemPost(data->activation);
-			SDL_WaitThread(data->helper_thread, 0);
-			SDL_DestroySemaphore(data->activation);
+			SDL_SemPost(data.activation);
+			SDL_WaitThread(data.helper_thread, 0);
+			SDL_DestroySemaphore(data.activation);
 			DEBUG_printf("Freed helper thread (#%d)\n", data_index);
 		}
 
@@ -641,7 +641,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 			if (USE_HELPER_THREADS)
 			{
-				FOR_ELEMS(data, state->helper_thread_datas)
+				FOR_ELEMS_PTR(data, state->helper_thread_datas)
 				{
 					SDL_SemPost(data->activation);
 				}
@@ -663,7 +663,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			{
 				FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
 				{
-					for (ChunkNode* node = *chunk_node; node; node = node->next_node)
+					for (ChunkNode* node = chunk_node; node; node = node->next_node)
 					{
 						update_chunk_node(state, node);
 					}
@@ -672,12 +672,12 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 			FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
 			{
-				Boid* old_boid = &state->map.old_boids[new_boid_index];
+				vf2 old_boid_position = state->map.old_boids[new_boid_index].position;
 
-				if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
+				if (pxd_floor(new_boid.position.x) != pxd_floor(old_boid_position.x) || pxd_floor(new_boid.position.y) != pxd_floor(old_boid_position.y))
 				{
-					remove_index_from_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), new_boid_index);
-					push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
+					remove_index_from_map(&state->map, pxd_floor(old_boid_position.x), pxd_floor(old_boid_position.y), new_boid_index);
+					push_index_into_map  (&state->map, pxd_floor(new_boid.position.x), pxd_floor(new_boid.position.y), new_boid_index);
 				}
 			}
 
@@ -707,7 +707,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
 		{
-			for (ChunkNode* current_chunk_node = *chunk_node; current_chunk_node; current_chunk_node = current_chunk_node->next_node)
+			for (ChunkNode* current_chunk_node = chunk_node; current_chunk_node; current_chunk_node = current_chunk_node->next_node)
 			{
 				f32 redness = 0.0f;
 				for (IndexBufferNode* node = current_chunk_node->index_buffer_node; node; node = node->next_node)
@@ -752,18 +752,18 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		FOR_ELEMS(old_boid, state->map.old_boids, BOID_AMOUNT)
 		{
-			vf2 pixel_offset = (old_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
+			vf2 pixel_offset = (old_boid.position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
 
 			if (IN_RANGE(pixel_offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(pixel_offset.y, 0.0f, WINDOW_HEIGHT))
 			{
 				vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
-				FOR_ELEMS(point, points)
+				FOR_ELEMS_PTR(point, points)
 				{
 					*point =
 						vf2
 						{
-							BOID_VERTICES[point_index].x * old_boid->direction.x - BOID_VERTICES[point_index].y * old_boid->direction.y,
-							BOID_VERTICES[point_index].x * old_boid->direction.y + BOID_VERTICES[point_index].y * old_boid->direction.x
+							BOID_VERTICES[point_index].x * old_boid.direction.x - BOID_VERTICES[point_index].y * old_boid.direction.y,
+							BOID_VERTICES[point_index].x * old_boid.direction.y + BOID_VERTICES[point_index].y * old_boid.direction.x
 						} * state->camera_zoom + pixel_offset;
 				}
 
