@@ -10,8 +10,9 @@
 // @TODO@ Non-Euclidan geometry.
 // @TODO@ Have a random leader boid.
 
+
 constexpr i32    PIXELS_PER_METER                  = 50;
-constexpr i32    BOID_AMOUNT                       = 3000;
+constexpr i32    BOID_AMOUNT                       = 4096;
 constexpr f32    BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
 constexpr f32    MINIMUM_RADIUS                    = 0.005f;
 constexpr f32    SEPARATION_WEIGHT                 = 16.0f;
