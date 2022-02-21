@@ -396,7 +396,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 	state->camera_position             = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / PIXELS_PER_METER / 2.0f;
 	state->camera_zoom_velocity_target = 0.0f;
 	state->camera_zoom_velocity        = 0.0f;
-	state->camera_zoom                 = 1.0f;
+	state->camera_zoom                 = 0.1f;
 	state->simulation_time_scalar      = 1.0f;
 	state->real_world_counter_seconds  = 0.0f;
 	state->boid_velocity               = 1.0f;
@@ -564,28 +564,103 @@ extern "C" PROTOTYPE_UPDATE(update)
 		}
 	}
 
+	u64 PROFILING_start;
+	{
+		LARGE_INTEGER PROFILING_TEMP;
+		QueryPerformanceCounter(&PROFILING_TEMP);
+		PROFILING_start = PROFILING_TEMP.QuadPart;
+	}
+
+	constexpr i32 PROFILING_SAMPLES_COUNT = 4096;
+
+	FOR_RANGE(i_, 0, PROFILING_SAMPLES_COUNT)
+	{
+		state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * CAMERA_VELOCITY : vf2 { 0.0f, 0.0f };
+		state->camera_velocity         = inch_towards(state->camera_velocity, state->camera_velocity_target, CAMERA_ACCELERATION * UPDATE_FREQUENCY);
+		state->camera_position        += state->camera_velocity * UPDATE_FREQUENCY;
+
+		state->camera_zoom_velocity_target  = state->arrow_keys.y * ZOOM_VELOCITY * state->camera_zoom;
+		state->camera_zoom_velocity         = inch_towards(state->camera_zoom_velocity, state->camera_zoom_velocity_target, ZOOM_ACCELERATION * UPDATE_FREQUENCY);
+		state->camera_zoom                 += state->camera_zoom_velocity * UPDATE_FREQUENCY;
+
+		if (state->camera_zoom < ZOOM_MINIMUM_SCALE_FACTOR)
+		{
+			state->camera_zoom_velocity_target = 0.0f;
+			state->camera_zoom_velocity        = 0.0f;
+			state->camera_zoom                 = ZOOM_MINIMUM_SCALE_FACTOR;
+		}
+		else if (state->camera_zoom > ZOOM_MAXIMUM_SCALE_FACTOR)
+		{
+			state->camera_zoom_velocity_target = 0.0f;
+			state->camera_zoom_velocity        = 0.0f;
+			state->camera_zoom                 = ZOOM_MAXIMUM_SCALE_FACTOR;
+		}
+
+		state->simulation_time_scalar += state->arrow_keys.x * TIME_SCALAR_CHANGE_SPEED * UPDATE_FREQUENCY;
+		state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, TIME_SCALAR_MAXIMUM_SCALE_FACTOR);
+
+		if (USE_HELPER_THREADS)
+		{
+			FOR_ELEMS(data, state->helper_thread_datas)
+			{
+				SDL_SemPost(data->activation);
+			}
+
+			update_boids(state, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD);
+
+			FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
+			{
+				SDL_SemWait(state->completed_work);
+			}
+		}
+		else
+		{
+			update_boids(state, 0, BOID_AMOUNT);
+		}
+
+		FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
+		{
+			Boid* old_boid = &state->map.old_boids[new_boid_index];
+
+			if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
+			{
+				remove_index_from_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), new_boid_index);
+				push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
+			}
+		}
+
+		SWAP(state->map.new_boids, state->map.old_boids);
+	}
+
+	u64 PROFILING_end;
+	{
+		LARGE_INTEGER PROFILING_TEMP;
+		QueryPerformanceCounter(&PROFILING_TEMP);
+		PROFILING_end = PROFILING_TEMP.QuadPart;
+	}
+
+	u64 PROFILING_frequency;
+	{
+		LARGE_INTEGER PROFILING_TEMP;
+		QueryPerformanceFrequency(&PROFILING_TEMP);
+		PROFILING_frequency = PROFILING_TEMP.QuadPart;
+	}
+
+	DEBUG_printf
+	(
+		"\n\n\n----------------\nSamples                   : %d\nUsed multi-threading      : %d\nBoids                     : %d\nPerformance counter delta : %llu\nPerformance time elapsed  : %f\n----------------\n\n\n",
+		PROFILING_SAMPLES_COUNT, USE_HELPER_THREADS, BOID_AMOUNT, PROFILING_end - PROFILING_start, static_cast<f64>(PROFILING_end - PROFILING_start) / PROFILING_frequency
+	);
+
+	boot_down(program);
+	program->is_running = false;
+	return;
+
+	/*
 	state->real_world_counter_seconds += program->delta_seconds;
 
 	if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
 	{
-		constexpr i32 PROFILING_MAX_PROFILE_COUNT           = 256;
-		persist   i32 PROFILING_profile_counter             = 0;
-		persist   u64 PROFILING_boid_update_profile_average = 0;
-		persist   u64 PROFILING_render_profile_average      = 0;
-		persist   u64 PROFILING_boid_update_profile_sum     = 0;
-		persist   u64 PROFILING_render_profile_sum          = 0;
-
-		if (PROFILING_profile_counter >= PROFILING_MAX_PROFILE_COUNT)
-		{
-			PROFILING_boid_update_profile_average = PROFILING_boid_update_profile_sum / PROFILING_MAX_PROFILE_COUNT;
-			PROFILING_render_profile_average      = PROFILING_render_profile_sum / PROFILING_MAX_PROFILE_COUNT;
-			PROFILING_profile_counter         = 0;
-			PROFILING_boid_update_profile_sum = 0;
-			PROFILING_render_profile_sum      = 0;
-		}
-
-		u64 PROFILING_boid_update_profile = SDL_GetPerformanceCounter(); // @STICKY@ START OF MAIN UPDATE PROFILE //
-
 		do
 		{
 			state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * CAMERA_VELOCITY : vf2 { 0.0f, 0.0f };
@@ -654,10 +729,6 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 		}
 		while (state->real_world_counter_seconds >= UPDATE_FREQUENCY);
-
-		PROFILING_boid_update_profile_sum += SDL_GetPerformanceCounter() - PROFILING_boid_update_profile; // @STICKY@ END OF MAIN UPDATE PROFILE //
-
-		u64 PROFILING_render_profile = SDL_GetPerformanceCounter(); // @STICKY@ START OF RENDER PROFILE //
 
 		//
 		// Heat map.
@@ -744,7 +815,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			program->renderer,
 			5,
 			5,
-			"FPS : %d\ncursor_down : %d\ncursor_x : %f\ncursor_y : %f\ncursor_click_x : %f\ncursor_click_y : %f\nBoid Velocity : %f\nTime Scalar : %f\nAverage boid update profile : %llu\nAverage render profile      : %llu\nBoid update / render        : %f",
+			"FPS : %d\ncursor_down : %d\ncursor_x : %f\ncursor_y : %f\ncursor_click_x : %f\ncursor_click_y : %f\nBoid Velocity : %f\nTime Scalar : %f",
 			pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)),
 			state->is_cursor_down,
 			state->cursor_position.x,
@@ -752,16 +823,10 @@ extern "C" PROTOTYPE_UPDATE(update)
 			state->last_cursor_click_position.x,
 			state->last_cursor_click_position.y,
 			state->boid_velocity,
-			state->simulation_time_scalar,
-			PROFILING_boid_update_profile_average,
-			PROFILING_render_profile_average,
-			static_cast<f64>(PROFILING_boid_update_profile_average) / PROFILING_render_profile_average
+			state->simulation_time_scalar
 		);
 
 		SDL_RenderPresent(program->renderer);
-
-		PROFILING_render_profile_sum += SDL_GetPerformanceCounter() - PROFILING_render_profile; // @STICKY@ END OF RENDER PROFILE //
-
-		++PROFILING_profile_counter;
 	}
+	*/
 }
