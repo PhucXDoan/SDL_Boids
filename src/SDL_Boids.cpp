@@ -571,7 +571,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 	QueryPerformanceCounter(&LARGE_INTEGER_TEMP);
 	START = LARGE_INTEGER_TEMP.QuadPart;
 
-	constexpr i32 ITERATIONS = 65536;
+	constexpr i32 ITERATIONS = 8192;
 	FOR_RANGE(i_, 0, ITERATIONS)
 	{
 		state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * CAMERA_VELOCITY : vf2 { 0.0f, 0.0f };
