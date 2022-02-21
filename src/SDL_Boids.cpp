@@ -376,6 +376,77 @@ void render_fill_rect(SDL_Renderer* renderer, vf2 bottom_left, vf2 dimensions)
 	SDL_RenderFillRect(renderer, &rect);
 }
 
+void update_simulation(State* state)
+{
+	state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * CAMERA_VELOCITY : vf2 { 0.0f, 0.0f };
+	state->camera_velocity         = inch_towards(state->camera_velocity, state->camera_velocity_target, CAMERA_ACCELERATION * UPDATE_FREQUENCY);
+	state->camera_position        += state->camera_velocity * UPDATE_FREQUENCY;
+
+	state->camera_zoom_velocity_target  = state->arrow_keys.y * ZOOM_VELOCITY * state->camera_zoom;
+	state->camera_zoom_velocity         = inch_towards(state->camera_zoom_velocity, state->camera_zoom_velocity_target, ZOOM_ACCELERATION * UPDATE_FREQUENCY);
+	state->camera_zoom                 += state->camera_zoom_velocity * UPDATE_FREQUENCY;
+
+	if (state->camera_zoom < ZOOM_MINIMUM_SCALE_FACTOR)
+	{
+		state->camera_zoom_velocity_target = 0.0f;
+		state->camera_zoom_velocity        = 0.0f;
+		state->camera_zoom                 = ZOOM_MINIMUM_SCALE_FACTOR;
+	}
+	else if (state->camera_zoom > ZOOM_MAXIMUM_SCALE_FACTOR)
+	{
+		state->camera_zoom_velocity_target = 0.0f;
+		state->camera_zoom_velocity        = 0.0f;
+		state->camera_zoom                 = ZOOM_MAXIMUM_SCALE_FACTOR;
+	}
+
+	state->simulation_time_scalar += state->arrow_keys.x * TIME_SCALAR_CHANGE_SPEED * UPDATE_FREQUENCY;
+	state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, TIME_SCALAR_MAXIMUM_SCALE_FACTOR);
+
+	if (USE_HELPER_THREADS)
+	{
+		FOR_ELEMS(data, state->helper_thread_datas)
+		{
+			SDL_SemPost(data->activation);
+		}
+
+		for (i32 i = HELPER_THREAD_COUNT; i < ARRAY_CAPACITY(state->map.chunk_node_hash_table); i += HELPER_THREAD_COUNT + 1)
+		{
+			for (ChunkNode* node = state->map.chunk_node_hash_table[i]; node; node = node->next_node)
+			{
+				update_chunk_node(state, node);
+			}
+		}
+
+		FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
+		{
+			SDL_SemWait(state->completed_work);
+		}
+	}
+	else
+	{
+		FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+		{
+			for (ChunkNode* node = *chunk_node; node; node = node->next_node)
+			{
+				update_chunk_node(state, node);
+			}
+		}
+	}
+
+	FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
+	{
+		Boid* old_boid = &state->map.old_boids[new_boid_index];
+
+		if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
+		{
+			remove_index_from_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), new_boid_index);
+			push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
+		}
+	}
+
+	SWAP(state->map.new_boids, state->map.old_boids);
+}
+
 extern "C" PROTOTYPE_INITIALIZE(initialize)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
@@ -581,7 +652,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 	}
 
 	// @STICKY@ Profiling stuff.
-	#if 1
+	#if 0
 	u64 START;
 	LARGE_INTEGER LARGE_INTEGER_TEMP;
 	QueryPerformanceCounter(&LARGE_INTEGER_TEMP);
@@ -590,73 +661,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 	constexpr i32 ITERATIONS = 8192;
 	FOR_RANGE(i_, 0, ITERATIONS)
 	{
-		state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * CAMERA_VELOCITY : vf2 { 0.0f, 0.0f };
-		state->camera_velocity         = inch_towards(state->camera_velocity, state->camera_velocity_target, CAMERA_ACCELERATION * UPDATE_FREQUENCY);
-		state->camera_position        += state->camera_velocity * UPDATE_FREQUENCY;
-
-		state->camera_zoom_velocity_target  = state->arrow_keys.y * ZOOM_VELOCITY * state->camera_zoom;
-		state->camera_zoom_velocity         = inch_towards(state->camera_zoom_velocity, state->camera_zoom_velocity_target, ZOOM_ACCELERATION * UPDATE_FREQUENCY);
-		state->camera_zoom                 += state->camera_zoom_velocity * UPDATE_FREQUENCY;
-
-		if (state->camera_zoom < ZOOM_MINIMUM_SCALE_FACTOR)
-		{
-			state->camera_zoom_velocity_target = 0.0f;
-			state->camera_zoom_velocity        = 0.0f;
-			state->camera_zoom                 = ZOOM_MINIMUM_SCALE_FACTOR;
-		}
-		else if (state->camera_zoom > ZOOM_MAXIMUM_SCALE_FACTOR)
-		{
-			state->camera_zoom_velocity_target = 0.0f;
-			state->camera_zoom_velocity        = 0.0f;
-			state->camera_zoom                 = ZOOM_MAXIMUM_SCALE_FACTOR;
-		}
-
-		state->simulation_time_scalar += state->arrow_keys.x * TIME_SCALAR_CHANGE_SPEED * UPDATE_FREQUENCY;
-		state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, TIME_SCALAR_MAXIMUM_SCALE_FACTOR);
-
-		if (USE_HELPER_THREADS)
-		{
-			FOR_ELEMS(data, state->helper_thread_datas)
-			{
-				SDL_SemPost(data->activation);
-			}
-
-			for (i32 i = HELPER_THREAD_COUNT; i < ARRAY_CAPACITY(state->map.chunk_node_hash_table); i += HELPER_THREAD_COUNT + 1)
-			{
-				for (ChunkNode* node = state->map.chunk_node_hash_table[i]; node; node = node->next_node)
-				{
-					update_chunk_node(state, node);
-				}
-			}
-
-			FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
-			{
-				SDL_SemWait(state->completed_work);
-			}
-		}
-		else
-		{
-			FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
-			{
-				for (ChunkNode* node = *chunk_node; node; node = node->next_node)
-				{
-					update_chunk_node(state, node);
-				}
-			}
-		}
-
-		FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
-		{
-			Boid* old_boid = &state->map.old_boids[new_boid_index];
-
-			if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
-			{
-				remove_index_from_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), new_boid_index);
-				push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
-			}
-		}
-
-		SWAP(state->map.new_boids, state->map.old_boids);
+		update_simulation(state);
 
 		if (SHOULD_CATCH_UP)
 		{
@@ -695,73 +700,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 	{
 		do
 		{
-			state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * CAMERA_VELOCITY : vf2 { 0.0f, 0.0f };
-			state->camera_velocity         = inch_towards(state->camera_velocity, state->camera_velocity_target, CAMERA_ACCELERATION * UPDATE_FREQUENCY);
-			state->camera_position        += state->camera_velocity * UPDATE_FREQUENCY;
-
-			state->camera_zoom_velocity_target  = state->arrow_keys.y * ZOOM_VELOCITY * state->camera_zoom;
-			state->camera_zoom_velocity         = inch_towards(state->camera_zoom_velocity, state->camera_zoom_velocity_target, ZOOM_ACCELERATION * UPDATE_FREQUENCY);
-			state->camera_zoom                 += state->camera_zoom_velocity * UPDATE_FREQUENCY;
-
-			if (state->camera_zoom < ZOOM_MINIMUM_SCALE_FACTOR)
-			{
-				state->camera_zoom_velocity_target = 0.0f;
-				state->camera_zoom_velocity        = 0.0f;
-				state->camera_zoom                 = ZOOM_MINIMUM_SCALE_FACTOR;
-			}
-			else if (state->camera_zoom > ZOOM_MAXIMUM_SCALE_FACTOR)
-			{
-				state->camera_zoom_velocity_target = 0.0f;
-				state->camera_zoom_velocity        = 0.0f;
-				state->camera_zoom                 = ZOOM_MAXIMUM_SCALE_FACTOR;
-			}
-
-			state->simulation_time_scalar += state->arrow_keys.x * TIME_SCALAR_CHANGE_SPEED * UPDATE_FREQUENCY;
-			state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, TIME_SCALAR_MAXIMUM_SCALE_FACTOR);
-
-			if (USE_HELPER_THREADS)
-			{
-				FOR_ELEMS(data, state->helper_thread_datas)
-				{
-					SDL_SemPost(data->activation);
-				}
-
-				for (i32 i = HELPER_THREAD_COUNT; i < ARRAY_CAPACITY(state->map.chunk_node_hash_table); i += HELPER_THREAD_COUNT + 1)
-				{
-					for (ChunkNode* node = state->map.chunk_node_hash_table[i]; node; node = node->next_node)
-					{
-						update_chunk_node(state, node);
-					}
-				}
-
-				FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
-				{
-					SDL_SemWait(state->completed_work);
-				}
-			}
-			else
-			{
-				FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
-				{
-					for (ChunkNode* node = *chunk_node; node; node = node->next_node)
-					{
-						update_chunk_node(state, node);
-					}
-				}
-			}
-
-			FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
-			{
-				Boid* old_boid = &state->map.old_boids[new_boid_index];
-
-				if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
-				{
-					remove_index_from_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), new_boid_index);
-					push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
-				}
-			}
-
-			SWAP(state->map.new_boids, state->map.old_boids);
+			update_simulation(state);
 
 			if (SHOULD_CATCH_UP)
 			{
