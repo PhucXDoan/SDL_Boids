@@ -591,6 +591,111 @@ extern "C" PROTOTYPE_UPDATE(update)
 		}
 	}
 
+	u64 PROFILING_start;
+	{
+		LARGE_INTEGER PROFILING_TEMP;
+		QueryPerformanceCounter(&PROFILING_TEMP);
+		PROFILING_start = PROFILING_TEMP.QuadPart;
+	}
+
+	constexpr i32 PROFILING_SAMPLES_COUNT = 4096;
+
+	FOR_RANGE(i_, 0, PROFILING_SAMPLES_COUNT)
+	{
+		state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * CAMERA_VELOCITY : vf2 { 0.0f, 0.0f };
+		state->camera_velocity         = inch_towards(state->camera_velocity, state->camera_velocity_target, CAMERA_ACCELERATION * UPDATE_FREQUENCY);
+		state->camera_position        += state->camera_velocity * UPDATE_FREQUENCY;
+
+		state->camera_zoom_velocity_target  = state->arrow_keys.y * ZOOM_VELOCITY * state->camera_zoom;
+		state->camera_zoom_velocity         = inch_towards(state->camera_zoom_velocity, state->camera_zoom_velocity_target, ZOOM_ACCELERATION * UPDATE_FREQUENCY);
+		state->camera_zoom                 += state->camera_zoom_velocity * UPDATE_FREQUENCY;
+
+		if (state->camera_zoom < ZOOM_MINIMUM_SCALE_FACTOR)
+		{
+			state->camera_zoom_velocity_target = 0.0f;
+			state->camera_zoom_velocity        = 0.0f;
+			state->camera_zoom                 = ZOOM_MINIMUM_SCALE_FACTOR;
+		}
+		else if (state->camera_zoom > ZOOM_MAXIMUM_SCALE_FACTOR)
+		{
+			state->camera_zoom_velocity_target = 0.0f;
+			state->camera_zoom_velocity        = 0.0f;
+			state->camera_zoom                 = ZOOM_MAXIMUM_SCALE_FACTOR;
+		}
+
+		state->simulation_time_scalar += state->arrow_keys.x * TIME_SCALAR_CHANGE_SPEED * UPDATE_FREQUENCY;
+		state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, TIME_SCALAR_MAXIMUM_SCALE_FACTOR);
+
+		if (USE_HELPER_THREADS)
+		{
+			FOR_ELEMS_PTR(data, state->helper_thread_datas)
+			{
+				SDL_SemPost(data->activation);
+			}
+
+			for (i32 i = HELPER_THREAD_COUNT; i < ARRAY_CAPACITY(state->map.chunk_node_hash_table); i += HELPER_THREAD_COUNT + 1)
+			{
+				for (ChunkNode* node = state->map.chunk_node_hash_table[i]; node; node = node->next_node)
+				{
+					update_chunk_node(state, node);
+				}
+			}
+
+			FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
+			{
+				SDL_SemWait(state->completed_work);
+			}
+		}
+		else
+		{
+			FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+			{
+				for (ChunkNode* node = chunk_node; node; node = node->next_node)
+				{
+					update_chunk_node(state, node);
+				}
+			}
+		}
+
+		FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
+		{
+			vf2 old_boid_position = state->map.old_boids[new_boid_index].position;
+
+			if (pxd_floor(new_boid.position.x) != pxd_floor(old_boid_position.x) || pxd_floor(new_boid.position.y) != pxd_floor(old_boid_position.y))
+			{
+				remove_index_from_map(&state->map, pxd_floor(old_boid_position.x), pxd_floor(old_boid_position.y), new_boid_index);
+				push_index_into_map  (&state->map, pxd_floor(new_boid.position.x), pxd_floor(new_boid.position.y), new_boid_index);
+			}
+		}
+
+		SWAP(state->map.new_boids, state->map.old_boids);
+	}
+
+	u64 PROFILING_end;
+	{
+		LARGE_INTEGER PROFILING_TEMP;
+		QueryPerformanceCounter(&PROFILING_TEMP);
+		PROFILING_end = PROFILING_TEMP.QuadPart;
+	}
+
+	u64 PROFILING_frequency;
+	{
+		LARGE_INTEGER PROFILING_TEMP;
+		QueryPerformanceFrequency(&PROFILING_TEMP);
+		PROFILING_frequency = PROFILING_TEMP.QuadPart;
+	}
+
+	DEBUG_printf
+	(
+		"\n\n\n----------------\nSamples                   : %d\nUsed multi-threading      : %d\nBoids                     : %d\nPerformance counter delta : %llu\nPerformance time elapsed  : %f\n----------------\n\n\n",
+		PROFILING_SAMPLES_COUNT, USE_HELPER_THREADS, BOID_AMOUNT, PROFILING_end - PROFILING_start, static_cast<f64>(PROFILING_end - PROFILING_start) / PROFILING_frequency
+	);
+
+	boot_down(program);
+	program->is_running = false;
+	return;
+
+	/*
 	state->real_world_counter_seconds += program->delta_seconds;
 
 	if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
@@ -803,4 +908,5 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		++PROFILING_profile_counter;
 	}
+	*/
 }
