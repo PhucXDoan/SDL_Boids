@@ -231,101 +231,109 @@ inline vf2 inch_towards(vf2 start, vf2 end, f32 step)
 	return { inch_towards(start.x, end.x, step), inch_towards(start.y, end.y, step) };
 }
 
-void update_boids(State* state, i32 starting_index, i32 count)
+void update_chunk_node(State* state, ChunkNode* chunk_node)
 {
-	FOR_RANGE(boid_index, starting_index, starting_index + count)
+	// @TODO@ Perhaps a better way to prefetch the surrounding `index_buffer_node`s.
+	constexpr i32 CHUNKS_WIDE = 2 * pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1;
+	IndexBufferNode* surrounding_index_buffer_nodes[CHUNKS_WIDE * CHUNKS_WIDE];
+	FOR_RANGE(i, 0, CHUNKS_WIDE)
 	{
-		Boid* old_boid = &state->map.old_boids[boid_index];
-
-		vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
-		vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
-		vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
-		i32 neighboring_boid_count                = 0;
-
-		FOR_RANGE(dy, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
+		FOR_RANGE(j, 0, CHUNKS_WIDE)
 		{
-			FOR_RANGE(dx, -pxd_ceil(BOID_NEIGHBORHOOD_RADIUS), pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1)
+			ChunkNode** surrounding_chunk_node = find_chunk_node(&state->map, chunk_node->x + i - CHUNKS_WIDE / 2, chunk_node->y + j - CHUNKS_WIDE / 2);
+
+			surrounding_index_buffer_nodes[i * CHUNKS_WIDE + j] =
+				*surrounding_chunk_node
+					? (*surrounding_chunk_node)->index_buffer_node
+					: 0;
+		}
+	}
+
+	IndexBufferNode* current_index_buffer_node = chunk_node->index_buffer_node;
+
+	do
+	{
+		FOR_ELEMS(boid_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
+		{
+			Boid* old_boid = &state->map.old_boids[*boid_index];
+
+			vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
+			vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
+			vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
+			i32 neighboring_boid_count                = 0;
+
+			FOR_ELEMS(surrounding_index_buffer_node, surrounding_index_buffer_nodes)
 			{
-				ChunkNode** chunk_node = find_chunk_node(&state->map, pxd_floor(old_boid->position.x) + dx, pxd_floor(old_boid->position.y) + dy);
-
-				ASSERT(chunk_node);
-
-				if (*chunk_node)
+				for (IndexBufferNode* other_current_index_buffer_node = *surrounding_index_buffer_node; other_current_index_buffer_node; other_current_index_buffer_node = other_current_index_buffer_node->next_node)
 				{
-					ASSERT((*chunk_node)->index_buffer_node);
-
-					IndexBufferNode* current_index_buffer_node = (*chunk_node)->index_buffer_node;
-
-					while (current_index_buffer_node)
+					FOR_ELEMS(other_boid_index, other_current_index_buffer_node->index_buffer, other_current_index_buffer_node->index_count)
 					{
-						FOR_ELEMS(other_boid_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
+						if (*other_boid_index != *boid_index)
 						{
-							if (*other_boid_index != boid_index)
-							{
-								vf2 to_other          = state->map.old_boids[*other_boid_index].position - old_boid->position;
-								f32 distance_to_other = norm(to_other);
+							vf2 to_other          = state->map.old_boids[*other_boid_index].position - old_boid->position;
+							f32 distance_to_other = norm(to_other);
 
-								if (IN_RANGE(distance_to_other, MINIMUM_RADIUS, BOID_NEIGHBORHOOD_RADIUS))
-								{
-									++neighboring_boid_count;
-									average_neighboring_boid_repulsion    -= to_other * BOID_NEIGHBORHOOD_RADIUS / distance_to_other;
-									average_neighboring_boid_movement     += state->map.old_boids[*other_boid_index].direction;
-									average_neighboring_boid_rel_position += to_other;
-								}
+							if (IN_RANGE(distance_to_other, MINIMUM_RADIUS, BOID_NEIGHBORHOOD_RADIUS))
+							{
+								++neighboring_boid_count;
+								average_neighboring_boid_repulsion    -= to_other * BOID_NEIGHBORHOOD_RADIUS / distance_to_other;
+								average_neighboring_boid_movement     += state->map.old_boids[*other_boid_index].direction;
+								average_neighboring_boid_rel_position += to_other;
 							}
 						}
-
-						current_index_buffer_node = current_index_buffer_node->next_node;
 					}
 				}
 			}
-		}
 
-		if (neighboring_boid_count)
-		{
-			average_neighboring_boid_repulsion    /= static_cast<f32>(neighboring_boid_count);
-			average_neighboring_boid_movement     /= static_cast<f32>(neighboring_boid_count);
-			average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
-		}
-
-		vf2 desired_movement =
-			average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
-			average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
-			average_neighboring_boid_rel_position * COHESION_WEIGHT   +
-			vf2
+			if (neighboring_boid_count)
 			{
-				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
-				signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
-			} * BORDER_WEIGHT;
+				average_neighboring_boid_repulsion    /= static_cast<f32>(neighboring_boid_count);
+				average_neighboring_boid_movement     /= static_cast<f32>(neighboring_boid_count);
+				average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
+			}
 
-		f32 desired_movement_distance = norm(desired_movement);
+			vf2 desired_movement =
+				average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
+				average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
+				average_neighboring_boid_rel_position * COHESION_WEIGHT   +
+				vf2
+				{
+					signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
+					signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
+				} * BORDER_WEIGHT;
 
-		if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
-		{
-			// @TODO@ Still need to figure out the best way to steer boids...
+			f32 desired_movement_distance = norm(desired_movement);
 
-			vf2 desired_direction = desired_movement / desired_movement_distance;
-			f32 step              = ANGULAR_VELOCITY * state->simulation_time_scalar * UPDATE_FREQUENCY;
-			f32 angle             = pxd_arccos(CLAMP(dot(old_boid->direction, desired_direction), -1.0f, 1.0f));
-
-			if (angle <= step)
+			if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
 			{
-				state->map.new_boids[boid_index].direction = desired_direction;
+				// @TODO@ Still need to figure out the best way to steer boids...
+
+				vf2 desired_direction = desired_movement / desired_movement_distance;
+				f32 step              = ANGULAR_VELOCITY * state->simulation_time_scalar * UPDATE_FREQUENCY;
+				f32 angle             = pxd_arccos(CLAMP(dot(old_boid->direction, desired_direction), -1.0f, 1.0f));
+
+				if (angle <= step)
+				{
+					state->map.new_boids[*boid_index].direction = desired_direction;
+				}
+				else
+				{
+					vf2 orth = { -old_boid->direction.y, old_boid->direction.x };
+					i32 side = pxd_sign(dot(desired_direction, orth));
+					state->map.new_boids[*boid_index].direction = complex_mult(old_boid->direction, polar(step * (side == 0 && desired_direction == -old_boid->direction ? 1.0f : side)));
+				}
 			}
 			else
 			{
-				vf2 orth = { -old_boid->direction.y, old_boid->direction.x };
-				i32 side = pxd_sign(dot(desired_direction, orth));
-				state->map.new_boids[boid_index].direction = complex_mult(old_boid->direction, polar(step * (side == 0 && desired_direction == -old_boid->direction ? 1.0f : side)));
+				state->map.new_boids[*boid_index].direction = old_boid->direction;
 			}
-		}
-		else
-		{
-			state->map.new_boids[boid_index].direction = old_boid->direction;
+
+			state->map.new_boids[*boid_index].position = old_boid->position + state->boid_velocity * old_boid->direction * state->simulation_time_scalar * UPDATE_FREQUENCY;
 		}
 
-		state->map.new_boids[boid_index].position = old_boid->position + state->boid_velocity * old_boid->direction * state->simulation_time_scalar * UPDATE_FREQUENCY;
+		current_index_buffer_node = current_index_buffer_node->next_node;
 	}
+	while (current_index_buffer_node);
 }
 
 int helper_thread_work(void* void_data)
@@ -334,7 +342,13 @@ int helper_thread_work(void* void_data)
 
 	while (SDL_SemWait(data->activation), !data->state->helper_threads_should_exit)
 	{
-		update_boids(data->state, data->new_boids_offset, BASE_WORKLOAD_FOR_HELPER_THREADS);
+		for (i32 i = data->index; i < ARRAY_CAPACITY(data->state->map.chunk_node_hash_table); i += HELPER_THREAD_COUNT + 1)
+		{
+			for (ChunkNode* node = data->state->map.chunk_node_hash_table[i]; node; node = node->next_node)
+			{
+				update_chunk_node(data->state, node);
+			}
+		}
 		SDL_SemPost(data->state->completed_work);
 	}
 
@@ -422,9 +436,9 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 
 		FOR_ELEMS(data, state->helper_thread_datas)
 		{
+			data->index            = data_index;
 			data->activation       = SDL_CreateSemaphore(0);
 			data->state            = state;
-			data->new_boids_offset = BASE_WORKLOAD_FOR_HELPER_THREADS * data_index;
 			data->helper_thread    = SDL_CreateThread(helper_thread_work, "`helper_thread_work`", reinterpret_cast<void*>(data));
 
 			DEBUG_printf("Created helper thread (#%d)\n", data_index);
@@ -605,7 +619,13 @@ extern "C" PROTOTYPE_UPDATE(update)
 				SDL_SemPost(data->activation);
 			}
 
-			update_boids(state, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD);
+			for (i32 i = HELPER_THREAD_COUNT; i < ARRAY_CAPACITY(state->map.chunk_node_hash_table); i += HELPER_THREAD_COUNT + 1)
+			{
+				for (ChunkNode* node = state->map.chunk_node_hash_table[i]; node; node = node->next_node)
+				{
+					update_chunk_node(state, node);
+				}
+			}
 
 			FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
 			{
@@ -614,7 +634,13 @@ extern "C" PROTOTYPE_UPDATE(update)
 		}
 		else
 		{
-			update_boids(state, 0, BOID_AMOUNT);
+			FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+			{
+				for (ChunkNode* node = *chunk_node; node; node = node->next_node)
+				{
+					update_chunk_node(state, node);
+				}
+			}
 		}
 
 		FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
@@ -629,6 +655,15 @@ extern "C" PROTOTYPE_UPDATE(update)
 		}
 
 		SWAP(state->map.new_boids, state->map.old_boids);
+
+		if (SHOULD_CATCH_UP)
+		{
+			state->real_world_counter_seconds -= UPDATE_FREQUENCY;
+		}
+		else
+		{
+			state->real_world_counter_seconds = 0.0f;
+		}
 	}
 
 	u64 END;
@@ -689,7 +724,13 @@ extern "C" PROTOTYPE_UPDATE(update)
 					SDL_SemPost(data->activation);
 				}
 
-				update_boids(state, MAIN_THREAD_NEW_BOIDS_OFFSET, MAIN_THREAD_WORKLOAD);
+				for (i32 i = HELPER_THREAD_COUNT; i < ARRAY_CAPACITY(state->map.chunk_node_hash_table); i += HELPER_THREAD_COUNT + 1)
+				{
+					for (ChunkNode* node = state->map.chunk_node_hash_table[i]; node; node = node->next_node)
+					{
+						update_chunk_node(state, node);
+					}
+				}
 
 				FOR_RANGE(i, 0, HELPER_THREAD_COUNT)
 				{
@@ -698,7 +739,13 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 			else
 			{
-				update_boids(state, 0, BOID_AMOUNT);
+				FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+				{
+					for (ChunkNode* node = *chunk_node; node; node = node->next_node)
+					{
+						update_chunk_node(state, node);
+					}
+				}
 			}
 
 			FOR_ELEMS(new_boid, state->map.new_boids, BOID_AMOUNT)
