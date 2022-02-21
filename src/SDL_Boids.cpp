@@ -233,6 +233,8 @@ inline vf2 inch_towards(vf2 start, vf2 end, f32 step)
 
 void update_chunk_node(State* state, ChunkNode* chunk_node)
 {
+	IndexBufferNode* current_index_buffer_node = chunk_node->index_buffer_node;
+
 	// @TODO@ Perhaps a better way to prefetch the surrounding `index_buffer_node`s.
 	constexpr i32 CHUNKS_WIDE = 2 * pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1;
 	IndexBufferNode* surrounding_index_buffer_nodes[CHUNKS_WIDE * CHUNKS_WIDE];
@@ -249,18 +251,13 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 		}
 	}
 
-	IndexBufferNode* current_index_buffer_node = chunk_node->index_buffer_node;
-
 	do
 	{
 		FOR_ELEMS(boid_index, current_index_buffer_node->index_buffer, current_index_buffer_node->index_count)
 		{
-			Boid* old_boid = &state->map.old_boids[*boid_index];
-
-			vf2 average_neighboring_boid_repulsion    = { 0.0f, 0.0f };
-			vf2 average_neighboring_boid_movement     = { 0.0f, 0.0f };
-			vf2 average_neighboring_boid_rel_position = { 0.0f, 0.0f };
-			i32 neighboring_boid_count                = 0;
+			Boid*  old_boid               = &state->map.old_boids[*boid_index];
+			__m256 packed_factors         = _mm256_set1_ps(0.0f);
+			i32    neighboring_boid_count = 0;
 
 			FOR_ELEMS(surrounding_index_buffer_node, surrounding_index_buffer_nodes)
 			{
@@ -276,9 +273,19 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 							if (IN_RANGE(distance_to_other, MINIMUM_RADIUS, BOID_NEIGHBORHOOD_RADIUS))
 							{
 								++neighboring_boid_count;
-								average_neighboring_boid_repulsion    -= to_other * BOID_NEIGHBORHOOD_RADIUS / distance_to_other;
-								average_neighboring_boid_movement     += state->map.old_boids[*other_boid_index].direction;
-								average_neighboring_boid_rel_position += to_other;
+
+								packed_factors =
+									_mm256_add_ps
+									(
+										packed_factors,
+										_mm256_set_ps
+										(
+											0.0f, 0.0f,
+											to_other.y, to_other.x,
+											state->map.old_boids[*other_boid_index].direction.y, state->map.old_boids[*other_boid_index].direction.x,
+											-to_other.y / distance_to_other, -to_other.x / distance_to_other
+										)
+									);
 							}
 						}
 					}
@@ -287,20 +294,15 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 
 			if (neighboring_boid_count)
 			{
-				average_neighboring_boid_repulsion    /= static_cast<f32>(neighboring_boid_count);
-				average_neighboring_boid_movement     /= static_cast<f32>(neighboring_boid_count);
-				average_neighboring_boid_rel_position /= static_cast<f32>(neighboring_boid_count);
+				packed_factors = _mm256_mul_ps(_mm256_div_ps(packed_factors, _mm256_set1_ps(static_cast<f32>(neighboring_boid_count))), PACKED_COEFFICIENTS);
 			}
 
+			// @TODO@ The extraction of floats here might be Windows specific.
 			vf2 desired_movement =
-				average_neighboring_boid_repulsion    * SEPARATION_WEIGHT +
-				average_neighboring_boid_movement     * ALIGNMENT_WEIGHT  +
-				average_neighboring_boid_rel_position * COHESION_WEIGHT   +
-				vf2
 				{
-					signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f),
-					signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f)
-				} * BORDER_WEIGHT;
+					packed_factors.m256_f32[0] + packed_factors.m256_f32[2] + packed_factors.m256_f32[4] + signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f) * BORDER_WEIGHT,
+					packed_factors.m256_f32[1] + packed_factors.m256_f32[3] + packed_factors.m256_f32[5] + signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f) * BORDER_WEIGHT
+				};
 
 			f32 desired_movement_distance = norm(desired_movement);
 
