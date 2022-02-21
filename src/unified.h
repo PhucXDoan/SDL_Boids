@@ -18,16 +18,13 @@
 #define CAPACITY_OF_MEMBER_(TYPE, MEMBER)           (CAPACITY_OF_ARRAY_(((TYPE*) 0)->MEMBER))
 #define PUSH_TYPE_(ARENA, TYPE)                     (reinterpret_cast<TYPE*>(push_size((ARENA), sizeof(TYPE)          )))
 #define PUSH_ARRAY_(ARENA, TYPE, COUNT)             (reinterpret_cast<TYPE*>(push_size((ARENA), sizeof(TYPE) * (COUNT))))
-#define FOR_BUFFER_(NAME, XS, COUNT)                for (i32 (NAME##_index) = 0; (NAME##_index) < (COUNT); ++(NAME##_index)) if (const auto (NAME) = (XS)[(NAME##_index)]; false); else
+#define FOR_BUFFER_(NAME, XS, COUNT)                for (i32 (NAME##_index) = 0; (NAME##_index) < (COUNT); ++(NAME##_index)) if (const auto (NAME) = &(XS)[(NAME##_index)]; false); else
 #define FOR_ARRAY_(NAME, XS)                        FOR_BUFFER_(NAME, XS, ARRAY_CAPACITY(XS))
-#define FOR_BUFFER_PTR_(NAME, XS, COUNT)            for (i32 (NAME##_index) = 0; (NAME##_index) < (COUNT); ++(NAME##_index)) if (const auto (NAME) = &(XS)[(NAME##_index)]; false); else
-#define FOR_ARRAY_PTR_(NAME, XS)                    FOR_BUFFER_PTR_(NAME, XS, ARRAY_CAPACITY(XS))
 
 #define ARRAY_CAPACITY(...)         (EXPAND_(OVERLOADED_MACRO_2_(__VA_ARGS__, CAPACITY_OF_MEMBER_, CAPACITY_OF_ARRAY_)(__VA_ARGS__)))
 #define PUSH(...)                   (EXPAND_(OVERLOADED_MACRO_3_(__VA_ARGS__, PUSH_ARRAY_, PUSH_TYPE_)(__VA_ARGS__)))
 #define FOR_RANGE(NAME, MINI, MAXI) for (i32 (NAME) = (MINI); (NAME) < (MAXI); ++(NAME))
 #define FOR_ELEMS(...)              EXPAND_(OVERLOADED_MACRO_3_(__VA_ARGS__, FOR_BUFFER_, FOR_ARRAY_)(__VA_ARGS__))
-#define FOR_ELEMS_PTR(...)          EXPAND_(OVERLOADED_MACRO_3_(__VA_ARGS__, FOR_BUFFER_PTR_, FOR_ARRAY_PTR_)(__VA_ARGS__))
 #define IN_RANGE(X, MINI, MAXI)     ((MINI) <= (X) && (X) < (MAXI))
 #define MINIMUM(X, Y)               ((X) <= (Y) ? (X) : (Y))
 #define MAXIMUM(X, Y)               ((X) >= (Y) ? (X) : (Y))
