@@ -55,7 +55,6 @@ int main(int, char**)
 	}
 
 	SDL_Window* window = SDL_CreateWindow("SDL_Boids", WINDOW_COORDINATES_X, WINDOW_COORDINATES_Y, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
-
 	if (!window)
 	{
 		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
@@ -64,20 +63,25 @@ int main(int, char**)
 	}
 
 	SDL_Window* aux_window = SDL_CreateWindow("aux_SDL_Boids", AUX_WINDOW_COORDINATES_X, AUX_WINDOW_COORDINATES_Y, AUX_WINDOW_WIDTH, AUX_WINDOW_HEIGHT, 0);
-
 	if (!aux_window)
 	{
 		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-		ASSERT(!"SDL could not create aux window.");
+		ASSERT(!"SDL could not create auxillary window.");
 		return -1;
 	}
 
 	SDL_Renderer* window_renderer = SDL_CreateRenderer(window, -1, 0);
-
 	if (!window_renderer)
 	{
 		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
 		ASSERT(!"SDL could not create a renderer for the window.");
+	}
+
+	SDL_Renderer* aux_window_renderer = SDL_CreateRenderer(aux_window, -1, 0);
+	if (!aux_window_renderer)
+	{
+		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
+		ASSERT(!"SDL could not create a renderer for the auxillary window.");
 	}
 
 	Program program;
@@ -116,7 +120,9 @@ int main(int, char**)
 		}
 	}
 
+	SDL_DestroyRenderer(aux_window_renderer);
 	SDL_DestroyRenderer(window_renderer);
+	SDL_DestroyWindow(aux_window);
 	SDL_DestroyWindow(window);
 	TTF_Quit();
 	SDL_Quit();

@@ -33,6 +33,7 @@ struct Program
 	bool32        is_going_to_hotload;
 	f32           delta_seconds;
 	SDL_Renderer* renderer;
+	SDL_Renderer* aux_renderer;
 	byte*         memory;
 	memsize       memory_capacity;
 };
