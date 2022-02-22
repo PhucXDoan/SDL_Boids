@@ -40,80 +40,84 @@ void reload_program_dll(HotloadingData* hotloading_data)
 
 int main(int, char**)
 {
-	HotloadingData hotloading_data = {};
-	reload_program_dll(&hotloading_data);
-
-	if (SDL_Init(SDL_INIT_VIDEO))
+	if (SDL_Init(SDL_INIT_VIDEO) < 0)
 	{
 		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
 		ASSERT(!"SDL could not initialize video.");
+		return -1;
 	}
-	else if (TTF_Init() < 0)
+
+	if (TTF_Init() == -1)
 	{
 		fprintf(stderr, "TTF_Error: '%s'\n", TTF_GetError());
 		ASSERT(!"SDL_ttf could not initialize.");
+		return -1;
 	}
-	else
+
+	SDL_Window* window = SDL_CreateWindow("SDL_Boids", WINDOW_COORDINATES_X, WINDOW_COORDINATES_Y, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
+
+	if (!window)
 	{
-		SDL_Window* window = SDL_CreateWindow("SDL_Boids", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
+		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
+		ASSERT(!"SDL could not create window.");
+		return -1;
+	}
 
-		if (window)
+	SDL_Window* aux_window = SDL_CreateWindow("aux_SDL_Boids", AUX_WINDOW_COORDINATES_X, AUX_WINDOW_COORDINATES_Y, AUX_WINDOW_WIDTH, AUX_WINDOW_HEIGHT, 0);
+
+	if (!aux_window)
+	{
+		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
+		ASSERT(!"SDL could not create aux window.");
+		return -1;
+	}
+
+	SDL_Renderer* window_renderer = SDL_CreateRenderer(window, -1, 0);
+
+	if (!window_renderer)
+	{
+		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
+		ASSERT(!"SDL could not create a renderer for the window.");
+	}
+
+	Program program;
+	program.is_running          = true;
+	program.is_going_to_hotload = false;
+	program.delta_seconds       = 0.0f;
+	program.renderer            = window_renderer;
+	program.memory              = reinterpret_cast<byte*>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+	program.memory_capacity     = MEMORY_CAPACITY;
+
+	HotloadingData hotloading_data = {};
+	reload_program_dll(&hotloading_data);
+	hotloading_data.initialize(&program);
+	hotloading_data.boot_up(&program);
+
+	u64 performance_count = SDL_GetPerformanceCounter();
+	while (program.is_running)
+	{
+		u64 new_performance_count = SDL_GetPerformanceCounter();
+		program.delta_seconds = static_cast<f32>(new_performance_count - performance_count) / SDL_GetPerformanceFrequency();
+		performance_count     = new_performance_count;
+
+		FILETIME current_program_dll_creation_time = get_program_dll_creation_time();
+		if (CompareFileTime(&current_program_dll_creation_time, &hotloading_data.dll_creation_time))
 		{
-			SDL_Renderer* window_renderer = SDL_CreateRenderer(window, -1, 0);
+			WIN32_FILE_ATTRIBUTE_DATA attributes_;
+			while (GetFileAttributesEx(LOCK_FILE_PATH, GetFileExInfoStandard, &attributes_));
 
-			if (window_renderer)
-			{
-				Program program;
-				program.is_running          = true;
-				program.is_going_to_hotload = false;
-				program.delta_seconds       = 0.0f;
-				program.renderer            = window_renderer;
-				program.memory              = reinterpret_cast<byte*>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
-				program.memory_capacity     = MEMORY_CAPACITY;
-
-				u64 performance_count = SDL_GetPerformanceCounter();
-
-				hotloading_data.initialize(&program);
-				hotloading_data.boot_up(&program);
-				while (program.is_running)
-				{
-					u64 new_performance_count = SDL_GetPerformanceCounter();
-					program.delta_seconds = static_cast<f32>(new_performance_count - performance_count) / SDL_GetPerformanceFrequency();
-					performance_count     = new_performance_count;
-
-					FILETIME current_program_dll_creation_time = get_program_dll_creation_time();
-					if (CompareFileTime(&current_program_dll_creation_time, &hotloading_data.dll_creation_time))
-					{
-						WIN32_FILE_ATTRIBUTE_DATA attributes_;
-						while (GetFileAttributesEx(LOCK_FILE_PATH, GetFileExInfoStandard, &attributes_));
-
-						hotloading_data.boot_down(&program);
-						reload_program_dll(&hotloading_data);
-						hotloading_data.boot_up(&program);
-					}
-					else
-					{
-						hotloading_data.update(&program);
-					}
-				}
-			}
-			else
-			{
-				fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-				ASSERT(!"SDL could not create a renderer for the window.");
-			}
-
-			SDL_DestroyRenderer(window_renderer);
+			hotloading_data.boot_down(&program);
+			reload_program_dll(&hotloading_data);
+			hotloading_data.boot_up(&program);
 		}
 		else
 		{
-			fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-			ASSERT(!"SDL could not create window.");
+			hotloading_data.update(&program);
 		}
-
-		SDL_DestroyWindow(window);
 	}
 
+	SDL_DestroyRenderer(window_renderer);
+	SDL_DestroyWindow(window);
 	TTF_Quit();
 	SDL_Quit();
 

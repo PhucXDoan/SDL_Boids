@@ -11,7 +11,7 @@
 // @TODO@ Have a random leader boid.
 
 
-constexpr i32    PIXELS_PER_METER                  = 50;
+constexpr i32    PIXELS_PER_METER                  = 38;
 constexpr i32    BOID_AMOUNT                       = 4096;
 constexpr f32    BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
 constexpr f32    MINIMUM_RADIUS                    = 0.005f;
@@ -24,7 +24,7 @@ constexpr f32    MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.01f;
 constexpr f32    BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
 constexpr f32    BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
 constexpr f32    HEATMAP_SENSITIVITY               = 8.0f;
-constexpr bool32 USE_HELPER_THREADS                = false; // @TODO@ This is necessary as it's not possible to set `HELPER_THREADS_COUNT` to 0 as of now.
+constexpr bool32 USE_HELPER_THREADS                = true; // @TODO@ This is necessary as it's not possible to set `HELPER_THREADS_COUNT` to 0 as of now.
 constexpr i32    HELPER_THREAD_COUNT               = 4;
 constexpr f32    CAMERA_VELOCITY                   = 8.0f;
 constexpr f32    CAMERA_ACCELERATION               = 64.0f;
@@ -39,14 +39,14 @@ constexpr strlit FONT_FILE_PATH                    = "C:/code/misc/fonts/consola
 constexpr i32    MAX_ITERATIONS_PER_FRAME          = 8;
 constexpr vf2    TESTING_BOX_COORDINATES           = { 180.0f, 124.0f };
 constexpr vf2    TESTING_BOX_DIMENSIONS            = { 90.0f, 20.0f };
-constexpr i32    PROFILING_ITERATION_COUNT         = 512; // @NOTE@ `0` to not profile.
+constexpr i32    PROFILING_ITERATION_COUNT         = 0; // @NOTE@ `0` to not profile.
 constexpr vf2    BOID_VERTICES[]                   =
 	{
-		{  4.5f,  0.0f },
-		{ -4.5f,  3.0f },
-		{ -0.5f,  0.0f },
-		{ -4.5f, -3.0f },
-		{  4.5f,  0.0f }
+		{  3.0f,  0.0f },
+		{ -3.0f,  2.0f },
+		{ -0.0f,  0.0f },
+		{ -3.0f, -2.0f },
+		{  3.0f,  0.0f }
 	};
 
 const __m256 PACKED_COEFFICIENTS =

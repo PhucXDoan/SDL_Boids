@@ -550,11 +550,14 @@ extern "C" PROTOTYPE_UPDATE(update)
 	{
 		switch (event.type)
 		{
-			case SDL_QUIT:
+			case SDL_WINDOWEVENT:
 			{
-				boot_down(program);
-				program->is_running = false;
-				return;
+				if (event.window.event == SDL_WINDOWEVENT_CLOSE)
+				{
+					boot_down(program);
+					program->is_running = false;
+					return;
+				}
 			} break;
 
 			case SDL_KEYDOWN:
