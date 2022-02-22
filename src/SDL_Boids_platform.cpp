@@ -92,6 +92,8 @@ int main(int, char**)
 	program.aux_renderer        = aux_window_renderer;
 	program.memory              = reinterpret_cast<byte*>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 	program.memory_capacity     = MEMORY_CAPACITY;
+	program.window_id           = SDL_GetWindowID(window);
+	program.aux_window_id       = SDL_GetWindowID(aux_window);
 
 	HotloadingData hotloading_data = {};
 	reload_program_dll(&hotloading_data);

@@ -37,7 +37,7 @@ constexpr f32    TIME_SCALAR_MAXIMUM_SCALE_FACTOR  = 2.0f;
 constexpr f32    UPDATE_FREQUENCY                  = 1.0f / 60.0f;
 constexpr strlit FONT_FILE_PATH                    = "C:/code/misc/fonts/consola.ttf";
 constexpr i32    MAX_ITERATIONS_PER_FRAME          = 8;
-constexpr vf2    TESTING_BOX_COORDINATES           = { 180.0f, 124.0f };
+constexpr vf2    TESTING_BOX_COORDINATES           = { 225.0f, 124.0f };
 constexpr vf2    TESTING_BOX_DIMENSIONS            = { 90.0f, 20.0f };
 constexpr i32    PROFILING_ITERATION_COUNT         = 0; // @NOTE@ `0` to not profile.
 constexpr vf2    BOID_VERTICES[]                   =
@@ -102,9 +102,9 @@ struct State
 {
 	SDL_Cursor*      default_cursor;
 	SDL_Cursor*      grab_cursor;
-	bool32           is_cursor_down;
-	vf2              cursor_position;
-	vf2              last_cursor_click_position;
+	bool32           is_aux_cursor_down;
+	vf2              aux_cursor_position;
+	vf2              last_aux_cursor_click_position;
 	FC_Font*         aux_font;
 	bool32           helper_threads_should_exit;
 	SDL_sem*         completed_work;

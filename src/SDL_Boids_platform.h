@@ -36,6 +36,8 @@ struct Program
 	SDL_Renderer* aux_renderer;
 	byte*         memory;
 	memsize       memory_capacity;
+	u32           window_id;
+	u32           aux_window_id;
 };
 
 #define PROTOTYPE_INITIALIZE(NAME) void NAME(Program* program)

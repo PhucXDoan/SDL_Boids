@@ -451,9 +451,9 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
-	state->is_cursor_down                  = false;
-	state->cursor_position                 = { 0.0f, 0.0f };
-	state->last_cursor_click_position      = { 0.0f, 0.0f };
+	state->is_aux_cursor_down              = false;
+	state->aux_cursor_position             = { 0.0f, 0.0f };
+	state->last_aux_cursor_click_position  = { 0.0f, 0.0f };
 	state->seed                            = 0xBEEFFACE;
 	state->map.arena.base                  = program->memory          + sizeof(State);
 	state->map.arena.size                  = program->memory_capacity - sizeof(State);
@@ -612,43 +612,48 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 			case SDL_MOUSEMOTION:
 			{
-				state->cursor_position = vf2 ( event.motion.x, event.motion.y );
-
-				if
-				(
-					state->is_cursor_down &&
-					IN_RANGE(state->last_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
-					IN_RANGE(state->last_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
-				)
+				if (event.motion.windowID == program->aux_window_id)
 				{
-					state->boid_velocity = state->held_boid_velocity + (state->cursor_position.x - state->last_cursor_click_position.x) / 100.0f;
-					state->boid_velocity = CLAMP(state->boid_velocity, 0.0f, 4.0f);
+					state->aux_cursor_position = vf2 ( event.motion.x, event.motion.y );
+
+					if
+					(
+						state->is_aux_cursor_down &&
+						IN_RANGE(state->last_aux_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
+						IN_RANGE(state->last_aux_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
+					)
+					{
+						state->boid_velocity = state->held_boid_velocity + (state->aux_cursor_position.x - state->last_aux_cursor_click_position.x) / 100.0f;
+						state->boid_velocity = CLAMP(state->boid_velocity, 0.0f, 4.0f);
+					}
 				}
 			} break;
 
 			case SDL_MOUSEBUTTONDOWN:
 			case SDL_MOUSEBUTTONUP:
 			{
-				state->is_cursor_down = event.button.state == SDL_PRESSED;
-
-				if (state->is_cursor_down)
+				if (event.button.windowID == program->aux_window_id || event.button.state == SDL_RELEASED)
 				{
-					SDL_SetCursor(state->grab_cursor);
-					state->last_cursor_click_position = vf2 ( event.button.x, event.button.y );
+					state->is_aux_cursor_down = event.button.state == SDL_PRESSED;
 
-
-					if
-					(
-						IN_RANGE(state->last_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
-						IN_RANGE(state->last_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
-					)
+					if (state->is_aux_cursor_down)
 					{
-						state->held_boid_velocity = state->boid_velocity;
+						SDL_SetCursor(state->grab_cursor);
+						state->last_aux_cursor_click_position = vf2 ( event.button.x, event.button.y );
+
+						if
+						(
+							IN_RANGE(state->last_aux_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
+							IN_RANGE(state->last_aux_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
+						)
+						{
+							state->held_boid_velocity = state->boid_velocity;
+						}
 					}
-				}
-				else
-				{
-					SDL_SetCursor(state->default_cursor);
+					else
+					{
+						SDL_SetCursor(state->default_cursor);
+					}
 				}
 			} break;
 		}
@@ -753,6 +758,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			SDL_SetRenderDrawColor(program->aux_renderer, 0, 0, 0, 255);
 			SDL_RenderClear(program->aux_renderer);
 
+			SDL_SetRenderDrawColor(program->aux_renderer, 128, 128, 0, 255);
 			SDL_Rect TESTING_rect = { static_cast<i32>(TESTING_BOX_COORDINATES.x), static_cast<i32>(TESTING_BOX_COORDINATES.y), static_cast<i32>(TESTING_BOX_DIMENSIONS.x), static_cast<i32>(TESTING_BOX_DIMENSIONS.y) };
 			SDL_RenderFillRect(program->aux_renderer, &TESTING_rect);
 
@@ -763,13 +769,13 @@ extern "C" PROTOTYPE_UPDATE(update)
 				program->aux_renderer,
 				5,
 				5,
-				"FPS : %d\ncursor_down : %d\ncursor_x : %f\ncursor_y : %f\ncursor_click_x : %f\ncursor_click_y : %f\nBoid Velocity : %f\nTime Scalar : %f",
+				"FPS : %d\naux_cursor_down : %d\naux_cursor_x : %f\naux_cursor_y : %f\naux_cursor_click_x : %f\naux_cursor_click_y : %f\nBoid Velocity     : %f\nTime Scalar     : %f",
 				pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)),
-				state->is_cursor_down,
-				state->cursor_position.x,
-				state->cursor_position.y,
-				state->last_cursor_click_position.x,
-				state->last_cursor_click_position.y,
+				state->is_aux_cursor_down,
+				state->aux_cursor_position.x,
+				state->aux_cursor_position.y,
+				state->last_aux_cursor_click_position.x,
+				state->last_aux_cursor_click_position.y,
 				state->boid_velocity,
 				state->simulation_time_scalar
 			);
