@@ -402,7 +402,7 @@ void update_simulation(State* state)
 	state->simulation_time_scalar += state->arrow_keys.x * TIME_SCALAR_CHANGE_SPEED * UPDATE_FREQUENCY;
 	state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, TIME_SCALAR_MAXIMUM_SCALE_FACTOR);
 
-	if (USE_HELPER_THREADS)
+	if constexpr (USE_HELPER_THREADS)
 	{
 		FOR_ELEMS(data, state->helper_thread_datas)
 		{
@@ -502,7 +502,7 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 		ASSERT(false);
 	}
 
-	if (USE_HELPER_THREADS)
+	if constexpr (USE_HELPER_THREADS)
 	{
 		state->helper_threads_should_exit = false;
 		state->completed_work             = SDL_CreateSemaphore(0);
@@ -527,7 +527,7 @@ extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 	SDL_FreeCursor(state->grab_cursor);
 	FC_FreeFont(state->aux_font);
 
-	if (USE_HELPER_THREADS)
+	if constexpr (USE_HELPER_THREADS)
 	{
 		state->helper_threads_should_exit = true;
 		FOR_ELEMS(data, state->helper_thread_datas)
@@ -659,131 +659,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 		}
 	}
 
-	if constexpr (PROFILING_ITERATION_COUNT == 0)
-	{
-		state->real_world_counter_seconds += program->delta_seconds;
-
-		if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
-		{
-			FOR_RANGE(i_, 0, MAX_ITERATIONS_PER_FRAME)
-			{
-				update_simulation(state);
-
-				state->real_world_counter_seconds -= UPDATE_FREQUENCY;
-				if (state->real_world_counter_seconds <= UPDATE_FREQUENCY)
-				{
-					break;
-				}
-			}
-
-			//
-			// Heat map.
-			//
-
-			SDL_SetRenderDrawColor(program->renderer, 0, 0, 0, 255);
-			SDL_RenderClear(program->renderer);
-
-			FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
-			{
-				for (ChunkNode* current_chunk_node = *chunk_node; current_chunk_node; current_chunk_node = current_chunk_node->next_node)
-				{
-					f32 redness = 0.0f;
-					for (IndexBufferNode* node = current_chunk_node->index_buffer_node; node; node = node->next_node)
-					{
-						redness += node->index_count;
-					}
-					redness *= HEATMAP_SENSITIVITY;
-
-					SDL_SetRenderDrawColor(program->renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
-
-					render_fill_rect
-					(
-						program->renderer,
-						(vf2 ( current_chunk_node->x, current_chunk_node->y ) - state->camera_position) * PIXELS_PER_METER * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f,
-						vf2 ( 1.0f, 1.0f ) * PIXELS_PER_METER * state->camera_zoom
-					);
-				}
-			}
-
-			//
-			// Grid.
-			//
-
-			// @TODO@ Works for now. Maybe it can be cleaned up some how?
-			SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
-			FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_WIDTH) / PIXELS_PER_METER / state->camera_zoom) + 1)
-			{
-				f32 x = (pxd_floor(state->camera_position.x - WINDOW_WIDTH / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.x) * state->camera_zoom * PIXELS_PER_METER + WINDOW_WIDTH / 2.0f;
-				render_line(program->renderer, vf2 ( x, 0.0f ), vf2 ( x, WINDOW_HEIGHT ));
-			}
-			FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER / state->camera_zoom) + 1)
-			{
-				f32 y = (pxd_floor(state->camera_position.y - WINDOW_HEIGHT / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.y) * state->camera_zoom * PIXELS_PER_METER + WINDOW_HEIGHT / 2.0f;
-				render_line(program->renderer, vf2 ( 0.0f, y ), vf2 ( WINDOW_WIDTH, y ));
-			}
-
-			//
-			// Boid Rendering.
-			//
-
-			SDL_SetRenderDrawColor(program->renderer, 222, 173, 38, 255);
-
-			FOR_ELEMS(old_boid, state->map.old_boids, BOID_AMOUNT)
-			{
-				vf2 pixel_offset = (old_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
-
-				if (IN_RANGE(pixel_offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(pixel_offset.y, 0.0f, WINDOW_HEIGHT))
-				{
-					vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
-					FOR_ELEMS(point, points)
-					{
-						*point =
-							vf2
-							{
-								BOID_VERTICES[point_index].x * old_boid->direction.x - BOID_VERTICES[point_index].y * old_boid->direction.y,
-								BOID_VERTICES[point_index].x * old_boid->direction.y + BOID_VERTICES[point_index].y * old_boid->direction.x
-							} * state->camera_zoom + pixel_offset;
-					}
-
-					render_lines(program->renderer, points, ARRAY_CAPACITY(points));
-				}
-			}
-
-			SDL_RenderPresent(program->renderer);
-
-			//
-			// Auxillary Window.
-			//
-
-			SDL_SetRenderDrawColor(program->aux_renderer, 0, 0, 0, 255);
-			SDL_RenderClear(program->aux_renderer);
-
-			SDL_SetRenderDrawColor(program->aux_renderer, 128, 128, 0, 255);
-			SDL_Rect TESTING_rect = { static_cast<i32>(TESTING_BOX_COORDINATES.x), static_cast<i32>(TESTING_BOX_COORDINATES.y), static_cast<i32>(TESTING_BOX_DIMENSIONS.x), static_cast<i32>(TESTING_BOX_DIMENSIONS.y) };
-			SDL_RenderFillRect(program->aux_renderer, &TESTING_rect);
-
-			// @TODO@ Accurate way to get FPS.
-			FC_Draw
-			(
-				state->aux_font,
-				program->aux_renderer,
-				5,
-				5,
-				"FPS : %d\naux_cursor_down : %d\naux_cursor_x : %f\naux_cursor_y : %f\naux_cursor_click_x : %f\naux_cursor_click_y : %f\nBoid Velocity     : %f\nTime Scalar     : %f",
-				pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)),
-				state->is_aux_cursor_down,
-				state->aux_cursor_position.x,
-				state->aux_cursor_position.y,
-				state->last_aux_cursor_click_position.x,
-				state->last_aux_cursor_click_position.y,
-				state->boid_velocity,
-				state->simulation_time_scalar
-			);
-
-			SDL_RenderPresent(program->aux_renderer);
-		}
-	}
-	else
+	if constexpr (PROFILING_ITERATION_COUNT != 0)
 	{
 		LARGE_INTEGER LARGE_INTEGER_TEMP;
 
@@ -813,5 +689,127 @@ extern "C" PROTOTYPE_UPDATE(update)
 		boot_down(program);
 		program->is_running = false;
 		return;
+	}
+
+	state->real_world_counter_seconds += program->delta_seconds;
+
+	if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
+	{
+		FOR_RANGE(i_, 0, MAX_ITERATIONS_PER_FRAME)
+		{
+			update_simulation(state);
+
+			state->real_world_counter_seconds -= UPDATE_FREQUENCY;
+			if (state->real_world_counter_seconds <= UPDATE_FREQUENCY)
+			{
+				break;
+			}
+		}
+
+		//
+		// Heat map.
+		//
+
+		SDL_SetRenderDrawColor(program->renderer, 0, 0, 0, 255);
+		SDL_RenderClear(program->renderer);
+
+		FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+		{
+			for (ChunkNode* current_chunk_node = *chunk_node; current_chunk_node; current_chunk_node = current_chunk_node->next_node)
+			{
+				f32 redness = 0.0f;
+				for (IndexBufferNode* node = current_chunk_node->index_buffer_node; node; node = node->next_node)
+				{
+					redness += node->index_count;
+				}
+				redness *= HEATMAP_SENSITIVITY;
+
+				SDL_SetRenderDrawColor(program->renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
+
+				render_fill_rect
+				(
+					program->renderer,
+					(vf2 ( current_chunk_node->x, current_chunk_node->y ) - state->camera_position) * PIXELS_PER_METER * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f,
+					vf2 ( 1.0f, 1.0f ) * PIXELS_PER_METER * state->camera_zoom
+				);
+			}
+		}
+
+		//
+		// Grid.
+		//
+
+		// @TODO@ Works for now. Maybe it can be cleaned up some how?
+		SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
+		FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_WIDTH) / PIXELS_PER_METER / state->camera_zoom) + 1)
+		{
+			f32 x = (pxd_floor(state->camera_position.x - WINDOW_WIDTH / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.x) * state->camera_zoom * PIXELS_PER_METER + WINDOW_WIDTH / 2.0f;
+			render_line(program->renderer, vf2 ( x, 0.0f ), vf2 ( x, WINDOW_HEIGHT ));
+		}
+		FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER / state->camera_zoom) + 1)
+		{
+			f32 y = (pxd_floor(state->camera_position.y - WINDOW_HEIGHT / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.y) * state->camera_zoom * PIXELS_PER_METER + WINDOW_HEIGHT / 2.0f;
+			render_line(program->renderer, vf2 ( 0.0f, y ), vf2 ( WINDOW_WIDTH, y ));
+		}
+
+		//
+		// Boid Rendering.
+		//
+
+		SDL_SetRenderDrawColor(program->renderer, 222, 173, 38, 255);
+
+		FOR_ELEMS(old_boid, state->map.old_boids, BOID_AMOUNT)
+		{
+			vf2 pixel_offset = (old_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
+
+			if (IN_RANGE(pixel_offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(pixel_offset.y, 0.0f, WINDOW_HEIGHT))
+			{
+				vf2 points[ARRAY_CAPACITY(BOID_VERTICES)];
+				FOR_ELEMS(point, points)
+				{
+					*point =
+						vf2
+						{
+							BOID_VERTICES[point_index].x * old_boid->direction.x - BOID_VERTICES[point_index].y * old_boid->direction.y,
+							BOID_VERTICES[point_index].x * old_boid->direction.y + BOID_VERTICES[point_index].y * old_boid->direction.x
+						} * state->camera_zoom + pixel_offset;
+				}
+
+				render_lines(program->renderer, points, ARRAY_CAPACITY(points));
+			}
+		}
+
+		SDL_RenderPresent(program->renderer);
+
+		//
+		// Auxillary Window.
+		//
+
+		SDL_SetRenderDrawColor(program->aux_renderer, 0, 0, 0, 255);
+		SDL_RenderClear(program->aux_renderer);
+
+		SDL_SetRenderDrawColor(program->aux_renderer, 128, 128, 0, 255);
+		SDL_Rect TESTING_rect = { static_cast<i32>(TESTING_BOX_COORDINATES.x), static_cast<i32>(TESTING_BOX_COORDINATES.y), static_cast<i32>(TESTING_BOX_DIMENSIONS.x), static_cast<i32>(TESTING_BOX_DIMENSIONS.y) };
+		SDL_RenderFillRect(program->aux_renderer, &TESTING_rect);
+
+		// @TODO@ Accurate way to get FPS.
+		FC_Draw
+		(
+			state->aux_font,
+			program->aux_renderer,
+			5,
+			5,
+			"FPS : %d\naux_cursor_down : %d\naux_cursor_x : %f\naux_cursor_y : %f\naux_cursor_click_x : %f\naux_cursor_click_y : %f\nBoid Velocity     : %f\nTime Scalar     : %f",
+			pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)),
+			state->is_aux_cursor_down,
+			state->aux_cursor_position.x,
+			state->aux_cursor_position.y,
+			state->last_aux_cursor_click_position.x,
+			state->last_aux_cursor_click_position.y,
+			state->boid_velocity,
+			state->simulation_time_scalar
+		);
+
+		SDL_RenderPresent(program->aux_renderer);
 	}
 }

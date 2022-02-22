@@ -39,7 +39,7 @@ constexpr strlit FONT_FILE_PATH                    = "C:/code/misc/fonts/consola
 constexpr i32    MAX_ITERATIONS_PER_FRAME          = 8;
 constexpr vf2    TESTING_BOX_COORDINATES           = { 225.0f, 124.0f };
 constexpr vf2    TESTING_BOX_DIMENSIONS            = { 90.0f, 20.0f };
-constexpr i32    PROFILING_ITERATION_COUNT         = 0; // @NOTE@ `0` to not profile.
+constexpr i32    PROFILING_ITERATION_COUNT         = 1000; // @NOTE@ `0` to not profile.
 constexpr vf2    BOID_VERTICES[]                   =
 	{
 		{  3.0f,  0.0f },
