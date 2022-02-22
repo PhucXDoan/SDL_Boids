@@ -495,9 +495,9 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 
 	state->default_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
 	state->grab_cursor    = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND); // @TODO@ Have a handgrab cursor. This one is ugly.
-	state->font = FC_CreateFont();
+	state->aux_font       = FC_CreateFont();
 
-	if (!FC_LoadFont(state->font, program->renderer, FONT_FILE_PATH, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL))
+	if (!FC_LoadFont(state->aux_font, program->aux_renderer, FONT_FILE_PATH, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL))
 	{
 		ASSERT(false);
 	}
@@ -525,7 +525,7 @@ extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 
 	SDL_FreeCursor(state->default_cursor);
 	SDL_FreeCursor(state->grab_cursor);
-	FC_FreeFont(state->font);
+	FC_FreeFont(state->aux_font);
 
 	if (USE_HELPER_THREADS)
 	{
@@ -744,16 +744,23 @@ extern "C" PROTOTYPE_UPDATE(update)
 				}
 			}
 
-			{
-				SDL_Rect TESTING_rect = { static_cast<i32>(TESTING_BOX_COORDINATES.x), static_cast<i32>(TESTING_BOX_COORDINATES.y), static_cast<i32>(TESTING_BOX_DIMENSIONS.x), static_cast<i32>(TESTING_BOX_DIMENSIONS.y) };
-				SDL_RenderFillRect(program->renderer, &TESTING_rect);
-			}
+			SDL_RenderPresent(program->renderer);
+
+			//
+			// Auxillary Window.
+			//
+
+			SDL_SetRenderDrawColor(program->aux_renderer, 0, 0, 0, 255);
+			SDL_RenderClear(program->aux_renderer);
+
+			SDL_Rect TESTING_rect = { static_cast<i32>(TESTING_BOX_COORDINATES.x), static_cast<i32>(TESTING_BOX_COORDINATES.y), static_cast<i32>(TESTING_BOX_DIMENSIONS.x), static_cast<i32>(TESTING_BOX_DIMENSIONS.y) };
+			SDL_RenderFillRect(program->aux_renderer, &TESTING_rect);
 
 			// @TODO@ Accurate way to get FPS.
 			FC_Draw
 			(
-				state->font,
-				program->renderer,
+				state->aux_font,
+				program->aux_renderer,
 				5,
 				5,
 				"FPS : %d\ncursor_down : %d\ncursor_x : %f\ncursor_y : %f\ncursor_click_x : %f\ncursor_click_y : %f\nBoid Velocity : %f\nTime Scalar : %f",
@@ -767,7 +774,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 				state->simulation_time_scalar
 			);
 
-			SDL_RenderPresent(program->renderer);
+			SDL_RenderPresent(program->aux_renderer);
 		}
 	}
 	else

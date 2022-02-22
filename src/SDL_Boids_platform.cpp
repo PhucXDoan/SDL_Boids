@@ -89,6 +89,7 @@ int main(int, char**)
 	program.is_going_to_hotload = false;
 	program.delta_seconds       = 0.0f;
 	program.renderer            = window_renderer;
+	program.aux_renderer        = aux_window_renderer;
 	program.memory              = reinterpret_cast<byte*>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 	program.memory_capacity     = MEMORY_CAPACITY;
 

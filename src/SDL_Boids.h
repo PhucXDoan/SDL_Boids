@@ -105,7 +105,7 @@ struct State
 	bool32           is_cursor_down;
 	vf2              cursor_position;
 	vf2              last_cursor_click_position;
-	FC_Font*         font;
+	FC_Font*         aux_font;
 	bool32           helper_threads_should_exit;
 	SDL_sem*         completed_work;
 	HelperThreadData helper_thread_datas[HELPER_THREAD_COUNT];
