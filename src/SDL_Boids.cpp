@@ -662,15 +662,6 @@ extern "C" PROTOTYPE_UPDATE(update)
 	FOR_RANGE(i_, 0, ITERATIONS)
 	{
 		update_simulation(state);
-
-		if (SHOULD_CATCH_UP)
-		{
-			state->real_world_counter_seconds -= UPDATE_FREQUENCY;
-		}
-		else
-		{
-			state->real_world_counter_seconds = 0.0f;
-		}
 	}
 
 	u64 END;
@@ -698,20 +689,16 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
 	{
-		do
+		FOR_RANGE(i_, 0, MAX_ITERATIONS_PER_FRAME)
 		{
 			update_simulation(state);
 
-			if (SHOULD_CATCH_UP)
+			state->real_world_counter_seconds -= UPDATE_FREQUENCY;
+			if (state->real_world_counter_seconds <= UPDATE_FREQUENCY)
 			{
-				state->real_world_counter_seconds -= UPDATE_FREQUENCY;
-			}
-			else
-			{
-				state->real_world_counter_seconds = 0.0f;
+				break;
 			}
 		}
-		while (state->real_world_counter_seconds >= UPDATE_FREQUENCY);
 
 		//
 		// Heat map.
