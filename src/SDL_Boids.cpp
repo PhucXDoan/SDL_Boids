@@ -779,23 +779,21 @@ extern "C" PROTOTYPE_UPDATE(update)
 	}
 	else
 	{
-		u64 START;
 		LARGE_INTEGER LARGE_INTEGER_TEMP;
+
 		QueryPerformanceCounter(&LARGE_INTEGER_TEMP);
-		START = LARGE_INTEGER_TEMP.QuadPart;
+		u64 START = LARGE_INTEGER_TEMP.QuadPart;
 
 		FOR_RANGE(i_, 0, PROFILING_ITERATION_COUNT)
 		{
 			update_simulation(state);
 		}
 
-		u64 END;
 		QueryPerformanceCounter(&LARGE_INTEGER_TEMP);
-		END = LARGE_INTEGER_TEMP.QuadPart;
+		u64 END = LARGE_INTEGER_TEMP.QuadPart;
 
-		u64 FREQUENCY;
 		QueryPerformanceFrequency(&LARGE_INTEGER_TEMP);
-		FREQUENCY = LARGE_INTEGER_TEMP.QuadPart;
+		u64 FREQUENCY = LARGE_INTEGER_TEMP.QuadPart;
 
 		DEBUG_printf
 		(
