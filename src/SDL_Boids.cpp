@@ -788,6 +788,27 @@ extern "C" PROTOTYPE_UPDATE(update)
 		SDL_SetRenderDrawColor(program->aux_renderer, 0, 0, 0, 255);
 		SDL_RenderClear(program->aux_renderer);
 
+		constexpr vf2 MEMORY_ARENA_COORDINATES = { 325.0f, 375.0f };
+		constexpr vf2 MEMORY_ARENA_DIMENSIONS  = {  15.0f, 150.0f };
+
+		f32 usage = static_cast<f32>(state->map.arena.used) / state->map.arena.size;
+
+		SDL_SetRenderDrawColor(program->aux_renderer, 64, 64, 64, 255);
+		render_fill_rect
+		(
+			program->aux_renderer,
+			MEMORY_ARENA_COORDINATES,
+			{ MEMORY_ARENA_DIMENSIONS.x, MEMORY_ARENA_DIMENSIONS.y * usage }
+		);
+
+		SDL_SetRenderDrawColor(program->aux_renderer, 128, 128, 128, 255);
+		render_fill_rect
+		(
+			program->aux_renderer,
+			{ MEMORY_ARENA_COORDINATES.x, MEMORY_ARENA_COORDINATES.y + MEMORY_ARENA_DIMENSIONS.y * usage } ,
+			{ MEMORY_ARENA_DIMENSIONS.x, MEMORY_ARENA_DIMENSIONS.y * (1.0f - usage) }
+		);
+
 		SDL_SetRenderDrawColor(program->aux_renderer, 128, 128, 0, 255);
 		SDL_Rect TESTING_rect = { static_cast<i32>(TESTING_BOX_COORDINATES.x), static_cast<i32>(TESTING_BOX_COORDINATES.y), static_cast<i32>(TESTING_BOX_DIMENSIONS.x), static_cast<i32>(TESTING_BOX_DIMENSIONS.y) };
 		SDL_RenderFillRect(program->aux_renderer, &TESTING_rect);
@@ -799,15 +820,13 @@ extern "C" PROTOTYPE_UPDATE(update)
 			program->aux_renderer,
 			5,
 			5,
-			"FPS : %d\naux_cursor_down : %d\naux_cursor_x : %f\naux_cursor_y : %f\naux_cursor_click_x : %f\naux_cursor_click_y : %f\nBoid Velocity : %f\nTime Scalar : %f",
+			"FPS : %d\nBoid Velocity : %f\nTime Scalar : %f\nUsed     : %llub\nCapacity : %llub\nPercent  : %f%%",
 			pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)),
-			state->is_aux_cursor_down,
-			state->aux_cursor_position.x,
-			state->aux_cursor_position.y,
-			state->last_aux_cursor_click_position.x,
-			state->last_aux_cursor_click_position.y,
 			state->boid_velocity,
-			state->simulation_time_scalar
+			state->simulation_time_scalar,
+			state->map.arena.used,
+			state->map.arena.size,
+			usage
 		);
 
 		FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
