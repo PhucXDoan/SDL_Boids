@@ -10,7 +10,6 @@
 // @TODO@ Non-Euclidan geometry.
 // @TODO@ Have a random leader boid.
 
-
 constexpr i32    PIXELS_PER_METER                  = 38;
 constexpr i32    BOID_AMOUNT                       = 512;
 constexpr f32    BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
@@ -39,7 +38,6 @@ constexpr strlit FONT_FILE_PATH                    = "C:/code/misc/fonts/consola
 constexpr i32    MAX_ITERATIONS_PER_FRAME          = 8;
 constexpr vf2    TESTING_BOX_COORDINATES           = { 180.0f, 24.0f };
 constexpr vf2    TESTING_BOX_DIMENSIONS            = { 90.0f, 20.0f };
-constexpr i32    PROFILING_ITERATION_COUNT         = 0; // @NOTE@ `0` to not profile.
 constexpr vf2    BOID_VERTICES[]                   =
 	{
 		{  3.0f,  0.0f },
@@ -57,6 +55,10 @@ const __m256 PACKED_COEFFICIENTS =
 		ALIGNMENT_WEIGHT, ALIGNMENT_WEIGHT,
 		SEPARATION_WEIGHT * BOID_NEIGHBORHOOD_RADIUS, SEPARATION_WEIGHT * BOID_NEIGHBORHOOD_RADIUS
 	);
+
+#if DEBUG
+constexpr i32    PROFILING_ITERATION_COUNT         = 0; // @NOTE@ `0` to not profile.
+#endif
 
 struct Boid
 {

@@ -402,7 +402,7 @@ void update_simulation(State* state)
 	state->simulation_time_scalar += state->arrow_keys.x * TIME_SCALAR_CHANGE_SPEED * UPDATE_FREQUENCY;
 	state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, TIME_SCALAR_MAXIMUM_SCALE_FACTOR);
 
-	if constexpr (USE_HELPER_THREADS)
+	if (USE_HELPER_THREADS)
 	{
 		FOR_ELEMS(data, state->helper_thread_datas)
 		{
@@ -504,7 +504,7 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 	}
 	#endif
 
-	if constexpr (USE_HELPER_THREADS)
+	if (USE_HELPER_THREADS)
 	{
 		state->helper_threads_should_exit = false;
 		state->completed_work             = SDL_CreateSemaphore(0);
@@ -529,7 +529,7 @@ extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 	SDL_FreeCursor(state->grab_cursor);
 	FC_FreeFont(state->debug_font);
 
-	if constexpr (USE_HELPER_THREADS)
+	if (USE_HELPER_THREADS)
 	{
 		state->helper_threads_should_exit = true;
 		FOR_ELEMS(data, state->helper_thread_datas)
@@ -665,7 +665,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 		}
 	}
 
-	if constexpr (PROFILING_ITERATION_COUNT != 0)
+	#if DEBUG
+	if (PROFILING_ITERATION_COUNT != 0)
 	{
 		LARGE_INTEGER LARGE_INTEGER_TEMP;
 
@@ -696,6 +697,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 		program->is_running = false;
 		return;
 	}
+	#endif
 
 	state->real_world_counter_seconds += program->delta_seconds;
 

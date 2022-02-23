@@ -1,6 +1,6 @@
 @echo off
 
-set DEBUG_BUILD=0
+set DEBUG_BUILD=1
 
 set DEBUG_COMMON_COMPILER_FLAGS=-DDEBUG=1 -nologo -std:c++17 -MTd -GR- -EHsc -EHa- -Od -Oi -Z7 -W4 -wd4702 -wd4100 -wd4201 -wd4127 -I W:\lib\SDL2\include\ -I W:\lib\SDL2_ttf\include\ -I W:\lib\SDL_FontCache\
 set DEBUG_COMMON_LINKER_FLAGS=-DEBUG:FULL -opt:ref -incremental:no -subsystem:windows W:\lib\SDL2\lib\x64\SDL2.lib W:\lib\SDL2\lib\x64\SDL2main.lib W:\lib\SDL2_ttf\lib\x64\SDL2_ttf.lib shell32.lib
@@ -12,6 +12,7 @@ IF NOT EXIST W:\build\ mkdir W:\build\
 
 pushd W:\build\
 IF %DEBUG_BUILD% == 1 (
+	echo "Debug build."
 	del *.pdb > NUL 2> NUL
 	echo "LOCK" > LOCK.tmp
 	cl %DEBUG_COMMON_COMPILER_FLAGS% -LD W:\src\SDL_Boids.cpp                           -FmSDL_Boids.map          /link %DEBUG_COMMON_LINKER_FLAGS% -PDB:SDL_Boids_%RANDOM%.pdb -EXPORT:initialize -EXPORT:boot_down -EXPORT:boot_up -EXPORT:update
@@ -19,6 +20,7 @@ IF %DEBUG_BUILD% == 1 (
 	sleep 0.25
 	del LOCK.tmp
 ) ELSE (
+	echo "Production build."
 	cl %NON_DEBUG_COMMON_COMPILER_FLAGS% -LD W:\src\SDL_Boids.cpp                           /link %NON_DEBUG_COMMON_LINKER_FLAGS% -EXPORT:initialize -EXPORT:boot_down -EXPORT:boot_up -EXPORT:update
 	cl %NON_DEBUG_COMMON_COMPILER_FLAGS%     W:\src\SDL_Boids_platform.cpp -FeSDL_Boids.exe /link %NON_DEBUG_COMMON_LINKER_FLAGS%
 )
