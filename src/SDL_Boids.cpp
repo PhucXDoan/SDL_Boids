@@ -820,31 +820,40 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 			if (*chunk_node)
 			{
-				SDL_SetRenderDrawColor(program->aux_renderer, 255, 255, 255, 255);
+				ChunkNode* current_chunk_node = *chunk_node;
+				i32        current_node_index = 0;
+				do
+				{
+					u8 gray = 64;
+
+					for (IndexBufferNode* current_index_buffer_node = current_chunk_node->index_buffer_node; current_index_buffer_node; current_index_buffer_node = current_index_buffer_node->next_node)
+					{
+						gray += 64;
+					}
+
+					SDL_SetRenderDrawColor(program->aux_renderer, gray, gray, gray, 255);
+
+					render_fill_rect
+					(
+						program->aux_renderer,
+						{ chunk_node_index % BUCKETS_PER_ROW * (BUCKET_DIMENSION + BUCKET_PADDING) + BUCKET_PADDING, STARTING_Y - chunk_node_index / BUCKETS_PER_ROW * LAYER_PADDING - BUCKET_DIMENSION * current_node_index },
+						{ BUCKET_DIMENSION, BUCKET_DIMENSION }
+					);
+
+					current_chunk_node = current_chunk_node->next_node;
+					++current_node_index;
+				}
+				while (current_chunk_node);
 			}
 			else
 			{
-				SDL_SetRenderDrawColor(program->aux_renderer, 64, 64, 64, 255);
-			}
-
-			ChunkNode* current_chunk_node = *chunk_node;
-			for (i32 current_node_index = 0;; ++current_node_index)
-			{
+				SDL_SetRenderDrawColor(program->aux_renderer, 32, 32, 32, 255);
 				render_fill_rect
 				(
 					program->aux_renderer,
-					{ chunk_node_index % BUCKETS_PER_ROW * (BUCKET_DIMENSION + BUCKET_PADDING) + BUCKET_PADDING, STARTING_Y - chunk_node_index / BUCKETS_PER_ROW * LAYER_PADDING - BUCKET_DIMENSION * current_node_index },
+					{ chunk_node_index % BUCKETS_PER_ROW * (BUCKET_DIMENSION + BUCKET_PADDING) + BUCKET_PADDING, STARTING_Y - chunk_node_index / BUCKETS_PER_ROW * LAYER_PADDING },
 					{ BUCKET_DIMENSION, BUCKET_DIMENSION }
 				);
-
-				if (current_chunk_node)
-				{
-					current_chunk_node = current_chunk_node->next_node;
-				}
-				else
-				{
-					break;
-				}
 			}
 		}
 
