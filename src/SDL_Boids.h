@@ -102,10 +102,10 @@ struct State
 {
 	SDL_Cursor*      default_cursor;
 	SDL_Cursor*      grab_cursor;
-	bool32           is_aux_cursor_down;
-	vf2              aux_cursor_position;
-	vf2              last_aux_cursor_click_position;
-	FC_Font*         aux_font;
+	bool32           is_debug_cursor_down;
+	vf2              debug_cursor_position;
+	vf2              last_debug_cursor_click_position;
+	FC_Font*         debug_font;
 	bool32           helper_threads_should_exit;
 	SDL_sem*         completed_work;
 	HelperThreadData helper_thread_datas[HELPER_THREAD_COUNT];

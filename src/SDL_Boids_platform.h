@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <SDL.h>
 #include <SDL_ttf.h>
+#include <windows.h> // @TODO@ Eventually become platform agnostic?
 #include "unified.h"
 
 #pragma warning(push, 0)
@@ -19,10 +20,10 @@ constexpr i32     WINDOW_WIDTH               = 960;
 constexpr i32     WINDOW_HEIGHT              = 540;
 constexpr i32     WINDOW_COORDINATES_X       = 50;
 constexpr i32     WINDOW_COORDINATES_Y       = 150;
-constexpr i32     AUX_WINDOW_WIDTH           = 500;
-constexpr i32     AUX_WINDOW_HEIGHT          = 500;
-constexpr i32     AUX_WINDOW_COORDINATES_X   = 950;
-constexpr i32     AUX_WINDOW_COORDINATES_Y   = 400;
+constexpr i32     DEBUG_WINDOW_WIDTH         = 500;
+constexpr i32     DEBUG_WINDOW_HEIGHT        = 500;
+constexpr i32     DEBUG_WINDOW_COORDINATES_X = 950;
+constexpr i32     DEBUG_WINDOW_COORDINATES_Y = 400;
 constexpr strlit  PROGRAM_DLL_FILE_PATH      = "W:/build/SDL_Boids.dll";
 constexpr strlit  PROGRAM_DLL_TEMP_FILE_PATH = "W:/build/SDL_Boids.dll.temp";
 constexpr strlit  LOCK_FILE_PATH             = "W:/build/LOCK.tmp";
@@ -33,11 +34,14 @@ struct Program
 	bool32        is_going_to_hotload;
 	f32           delta_seconds;
 	SDL_Renderer* renderer;
-	SDL_Renderer* aux_renderer;
 	byte*         memory;
 	memsize       memory_capacity;
 	u32           window_id;
-	u32           aux_window_id;
+
+	#if DEBUG
+	SDL_Renderer* debug_renderer;
+	u32           debug_window_id;
+	#endif
 };
 
 #define PROTOTYPE_INITIALIZE(NAME) void NAME(Program* program)

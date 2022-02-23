@@ -62,14 +62,6 @@ int main(int, char**)
 		return -1;
 	}
 
-	SDL_Window* aux_window = SDL_CreateWindow("aux_SDL_Boids", AUX_WINDOW_COORDINATES_X, AUX_WINDOW_COORDINATES_Y, AUX_WINDOW_WIDTH, AUX_WINDOW_HEIGHT, 0);
-	if (!aux_window)
-	{
-		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-		ASSERT(!"SDL could not create auxillary window.");
-		return -1;
-	}
-
 	SDL_Renderer* window_renderer = SDL_CreateRenderer(window, -1, 0);
 	if (!window_renderer)
 	{
@@ -77,23 +69,36 @@ int main(int, char**)
 		ASSERT(!"SDL could not create a renderer for the window.");
 	}
 
-	SDL_Renderer* aux_window_renderer = SDL_CreateRenderer(aux_window, -1, 0);
-	if (!aux_window_renderer)
+	#if DEBUG
+	SDL_Window* debug_window = SDL_CreateWindow("debug_SDL_Boids", DEBUG_WINDOW_COORDINATES_X, DEBUG_WINDOW_COORDINATES_Y, DEBUG_WINDOW_WIDTH, DEBUG_WINDOW_HEIGHT, 0);
+	if (!debug_window)
 	{
 		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
-		ASSERT(!"SDL could not create a renderer for the auxillary window.");
+		ASSERT(!"SDL could not create debug window.");
+		return -1;
 	}
+
+	SDL_Renderer* debug_window_renderer = SDL_CreateRenderer(debug_window, -1, 0);
+	if (!debug_window_renderer)
+	{
+		fprintf(stderr, "SDL_Error: '%s'\n", SDL_GetError());
+		ASSERT(!"SDL could not create a renderer for the debug window.");
+	}
+	#endif
 
 	Program program;
 	program.is_running          = true;
 	program.is_going_to_hotload = false;
 	program.delta_seconds       = 0.0f;
 	program.renderer            = window_renderer;
-	program.aux_renderer        = aux_window_renderer;
 	program.memory              = reinterpret_cast<byte*>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 	program.memory_capacity     = MEMORY_CAPACITY;
 	program.window_id           = SDL_GetWindowID(window);
-	program.aux_window_id       = SDL_GetWindowID(aux_window);
+
+	#if DEBUG
+	program.debug_renderer      = debug_window_renderer;
+	program.debug_window_id     = SDL_GetWindowID(debug_window);
+	#endif
 
 	HotloadingData hotloading_data = {};
 	reload_program_dll(&hotloading_data);
@@ -123,9 +128,12 @@ int main(int, char**)
 		}
 	}
 
-	SDL_DestroyRenderer(aux_window_renderer);
+	#if DEBUG
+	SDL_DestroyRenderer(debug_window_renderer);
+	SDL_DestroyWindow(debug_window);
+	#endif
+
 	SDL_DestroyRenderer(window_renderer);
-	SDL_DestroyWindow(aux_window);
 	SDL_DestroyWindow(window);
 	TTF_Quit();
 	SDL_Quit();

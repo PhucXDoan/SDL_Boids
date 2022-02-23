@@ -451,15 +451,15 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
-	state->is_aux_cursor_down              = false;
-	state->aux_cursor_position             = { 0.0f, 0.0f };
-	state->last_aux_cursor_click_position  = { 0.0f, 0.0f };
-	state->seed                            = 0xBEEFFACE;
-	state->map.arena.base                  = program->memory          + sizeof(State);
-	state->map.arena.size                  = program->memory_capacity - sizeof(State);
-	state->map.arena.used                  = 0;
-	state->map.available_index_buffer_node = 0;
-	state->map.available_chunk_node        = 0;
+	state->is_debug_cursor_down             = false;
+	state->debug_cursor_position            = { 0.0f, 0.0f };
+	state->last_debug_cursor_click_position = { 0.0f, 0.0f };
+	state->seed                             = 0xBEEFFACE;
+	state->map.arena.base                   = program->memory          + sizeof(State);
+	state->map.arena.size                   = program->memory_capacity - sizeof(State);
+	state->map.arena.used                   = 0;
+	state->map.available_index_buffer_node  = 0;
+	state->map.available_chunk_node         = 0;
 
 	FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
 	{
@@ -495,12 +495,14 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 
 	state->default_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
 	state->grab_cursor    = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND); // @TODO@ Have a handgrab cursor. This one is ugly.
-	state->aux_font       = FC_CreateFont();
+	state->debug_font     = FC_CreateFont();
 
-	if (!FC_LoadFont(state->aux_font, program->aux_renderer, FONT_FILE_PATH, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL))
+	#if DEBUG
+	if (!FC_LoadFont(state->debug_font, program->debug_renderer, FONT_FILE_PATH, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL))
 	{
 		ASSERT(false);
 	}
+	#endif
 
 	if constexpr (USE_HELPER_THREADS)
 	{
@@ -525,7 +527,7 @@ extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 
 	SDL_FreeCursor(state->default_cursor);
 	SDL_FreeCursor(state->grab_cursor);
-	FC_FreeFont(state->aux_font);
+	FC_FreeFont(state->debug_font);
 
 	if constexpr (USE_HELPER_THREADS)
 	{
@@ -612,39 +614,42 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 			case SDL_MOUSEMOTION:
 			{
-				if (event.motion.windowID == program->aux_window_id)
+				#if DEBUG
+				if (event.motion.windowID == program->debug_window_id)
 				{
-					state->aux_cursor_position = vf2 ( event.motion.x, event.motion.y );
+					state->debug_cursor_position = vf2 ( event.motion.x, event.motion.y );
 
 					if
 					(
-						state->is_aux_cursor_down &&
-						IN_RANGE(state->last_aux_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
-						IN_RANGE(state->last_aux_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
+						state->is_debug_cursor_down &&
+						IN_RANGE(state->last_debug_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
+						IN_RANGE(state->last_debug_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
 					)
 					{
-						state->boid_velocity = state->held_boid_velocity + (state->aux_cursor_position.x - state->last_aux_cursor_click_position.x) / 100.0f;
+						state->boid_velocity = state->held_boid_velocity + (state->debug_cursor_position.x - state->last_debug_cursor_click_position.x) / 100.0f;
 						state->boid_velocity = CLAMP(state->boid_velocity, 0.0f, 4.0f);
 					}
 				}
+				#endif
 			} break;
 
 			case SDL_MOUSEBUTTONDOWN:
 			case SDL_MOUSEBUTTONUP:
 			{
-				if (event.button.windowID == program->aux_window_id || event.button.state == SDL_RELEASED)
+				#if DEBUG
+				if (event.button.windowID == program->debug_window_id || event.button.state == SDL_RELEASED)
 				{
-					state->is_aux_cursor_down = event.button.state == SDL_PRESSED;
+					state->is_debug_cursor_down = event.button.state == SDL_PRESSED;
 
-					if (state->is_aux_cursor_down)
+					if (state->is_debug_cursor_down)
 					{
 						SDL_SetCursor(state->grab_cursor);
-						state->last_aux_cursor_click_position = vf2 ( event.button.x, event.button.y );
+						state->last_debug_cursor_click_position = vf2 ( event.button.x, event.button.y );
 
 						if
 						(
-							IN_RANGE(state->last_aux_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
-							IN_RANGE(state->last_aux_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
+							IN_RANGE(state->last_debug_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
+							IN_RANGE(state->last_debug_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
 						)
 						{
 							state->held_boid_velocity = state->boid_velocity;
@@ -655,6 +660,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 						SDL_SetCursor(state->default_cursor);
 					}
 				}
+				#endif
 			} break;
 		}
 	}
@@ -782,42 +788,43 @@ extern "C" PROTOTYPE_UPDATE(update)
 		SDL_RenderPresent(program->renderer);
 
 		//
-		// Auxillary Window.
+		// Debug Window.
 		//
 
-		SDL_SetRenderDrawColor(program->aux_renderer, 0, 0, 0, 255);
-		SDL_RenderClear(program->aux_renderer);
+		#if DEBUG
+		SDL_SetRenderDrawColor(program->debug_renderer, 0, 0, 0, 255);
+		SDL_RenderClear(program->debug_renderer);
 
 		constexpr vf2 MEMORY_ARENA_COORDINATES = { 325.0f, 375.0f };
 		constexpr vf2 MEMORY_ARENA_DIMENSIONS  = {  15.0f, 150.0f };
 
 		f32 usage = static_cast<f32>(state->map.arena.used) / state->map.arena.size;
 
-		SDL_SetRenderDrawColor(program->aux_renderer, 64, 64, 64, 255);
+		SDL_SetRenderDrawColor(program->debug_renderer, 64, 64, 64, 255);
 		render_fill_rect
 		(
-			program->aux_renderer,
+			program->debug_renderer,
 			MEMORY_ARENA_COORDINATES,
 			{ MEMORY_ARENA_DIMENSIONS.x, MEMORY_ARENA_DIMENSIONS.y * usage }
 		);
 
-		SDL_SetRenderDrawColor(program->aux_renderer, 128, 128, 128, 255);
+		SDL_SetRenderDrawColor(program->debug_renderer, 128, 128, 128, 255);
 		render_fill_rect
 		(
-			program->aux_renderer,
+			program->debug_renderer,
 			{ MEMORY_ARENA_COORDINATES.x, MEMORY_ARENA_COORDINATES.y + MEMORY_ARENA_DIMENSIONS.y * usage } ,
 			{ MEMORY_ARENA_DIMENSIONS.x, MEMORY_ARENA_DIMENSIONS.y * (1.0f - usage) }
 		);
 
-		SDL_SetRenderDrawColor(program->aux_renderer, 128, 128, 0, 255);
+		SDL_SetRenderDrawColor(program->debug_renderer, 128, 128, 0, 255);
 		SDL_Rect TESTING_rect = { static_cast<i32>(TESTING_BOX_COORDINATES.x), static_cast<i32>(TESTING_BOX_COORDINATES.y), static_cast<i32>(TESTING_BOX_DIMENSIONS.x), static_cast<i32>(TESTING_BOX_DIMENSIONS.y) };
-		SDL_RenderFillRect(program->aux_renderer, &TESTING_rect);
+		SDL_RenderFillRect(program->debug_renderer, &TESTING_rect);
 
 		// @TODO@ Accurate way to get FPS.
 		FC_Draw
 		(
-			state->aux_font,
-			program->aux_renderer,
+			state->debug_font,
+			program->debug_renderer,
 			5,
 			5,
 			"FPS : %d\nBoid Velocity : %f\nTime Scalar : %f\nUsed     : %llub\nCapacity : %llub\nPercent  : %f%%",
@@ -850,11 +857,11 @@ extern "C" PROTOTYPE_UPDATE(update)
 						gray += 64;
 					}
 
-					SDL_SetRenderDrawColor(program->aux_renderer, gray, gray, gray, 255);
+					SDL_SetRenderDrawColor(program->debug_renderer, gray, gray, gray, 255);
 
 					render_fill_rect
 					(
-						program->aux_renderer,
+						program->debug_renderer,
 						{ chunk_node_index % BUCKETS_PER_ROW * (BUCKET_DIMENSION + BUCKET_PADDING) + BUCKET_PADDING, STARTING_Y - chunk_node_index / BUCKETS_PER_ROW * LAYER_PADDING - BUCKET_DIMENSION * current_node_index },
 						{ BUCKET_DIMENSION, BUCKET_DIMENSION }
 					);
@@ -866,16 +873,17 @@ extern "C" PROTOTYPE_UPDATE(update)
 			}
 			else
 			{
-				SDL_SetRenderDrawColor(program->aux_renderer, 32, 32, 32, 255);
+				SDL_SetRenderDrawColor(program->debug_renderer, 32, 32, 32, 255);
 				render_fill_rect
 				(
-					program->aux_renderer,
+					program->debug_renderer,
 					{ chunk_node_index % BUCKETS_PER_ROW * (BUCKET_DIMENSION + BUCKET_PADDING) + BUCKET_PADDING, STARTING_Y - chunk_node_index / BUCKETS_PER_ROW * LAYER_PADDING },
 					{ BUCKET_DIMENSION, BUCKET_DIMENSION }
 				);
 			}
 		}
 
-		SDL_RenderPresent(program->aux_renderer);
+		SDL_RenderPresent(program->debug_renderer);
+		#endif
 	}
 }
