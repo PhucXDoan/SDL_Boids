@@ -799,7 +799,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			program->aux_renderer,
 			5,
 			5,
-			"FPS : %d\naux_cursor_down : %d\naux_cursor_x : %f\naux_cursor_y : %f\naux_cursor_click_x : %f\naux_cursor_click_y : %f\nBoid Velocity     : %f\nTime Scalar     : %f",
+			"FPS : %d\naux_cursor_down : %d\naux_cursor_x : %f\naux_cursor_y : %f\naux_cursor_click_x : %f\naux_cursor_click_y : %f\nBoid Velocity : %f\nTime Scalar : %f",
 			pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)),
 			state->is_aux_cursor_down,
 			state->aux_cursor_position.x,
@@ -809,6 +809,20 @@ extern "C" PROTOTYPE_UPDATE(update)
 			state->boid_velocity,
 			state->simulation_time_scalar
 		);
+
+		SDL_SetRenderDrawColor(program->aux_renderer, 255, 255, 255, 255);
+		FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
+		{
+			constexpr i32 BUCKETS_PER_ROW  = 32;
+			constexpr f32 BUCKET_DIMENSION = 10.0f;
+			constexpr f32 PADDING          = 5.0f;
+			render_fill_rect
+			(
+				program->aux_renderer,
+				{ chunk_node_index % BUCKETS_PER_ROW * (BUCKET_DIMENSION + PADDING) + PADDING, 350.0f - chunk_node_index / BUCKETS_PER_ROW * 35.0f },
+				{ BUCKET_DIMENSION, BUCKET_DIMENSION }
+			);
+		}
 
 		SDL_RenderPresent(program->aux_renderer);
 	}
