@@ -810,18 +810,42 @@ extern "C" PROTOTYPE_UPDATE(update)
 			state->simulation_time_scalar
 		);
 
-		SDL_SetRenderDrawColor(program->aux_renderer, 255, 255, 255, 255);
 		FOR_ELEMS(chunk_node, state->map.chunk_node_hash_table)
 		{
 			constexpr i32 BUCKETS_PER_ROW  = 32;
 			constexpr f32 BUCKET_DIMENSION = 10.0f;
-			constexpr f32 PADDING          = 5.0f;
-			render_fill_rect
-			(
-				program->aux_renderer,
-				{ chunk_node_index % BUCKETS_PER_ROW * (BUCKET_DIMENSION + PADDING) + PADDING, 350.0f - chunk_node_index / BUCKETS_PER_ROW * 35.0f },
-				{ BUCKET_DIMENSION, BUCKET_DIMENSION }
-			);
+			constexpr f32 BUCKET_PADDING   = 5.0f;
+			constexpr f32 LAYER_PADDING    = 40.0f;
+			constexpr f32 STARTING_Y       = 350.0f;
+
+			if (*chunk_node)
+			{
+				SDL_SetRenderDrawColor(program->aux_renderer, 255, 255, 255, 255);
+			}
+			else
+			{
+				SDL_SetRenderDrawColor(program->aux_renderer, 64, 64, 64, 255);
+			}
+
+			ChunkNode* current_chunk_node = *chunk_node;
+			for (i32 current_node_index = 0;; ++current_node_index)
+			{
+				render_fill_rect
+				(
+					program->aux_renderer,
+					{ chunk_node_index % BUCKETS_PER_ROW * (BUCKET_DIMENSION + BUCKET_PADDING) + BUCKET_PADDING, STARTING_Y - chunk_node_index / BUCKETS_PER_ROW * LAYER_PADDING - BUCKET_DIMENSION * current_node_index },
+					{ BUCKET_DIMENSION, BUCKET_DIMENSION }
+				);
+
+				if (current_chunk_node)
+				{
+					current_chunk_node = current_chunk_node->next_node;
+				}
+				else
+				{
+					break;
+				}
+			}
 		}
 
 		SDL_RenderPresent(program->aux_renderer);
