@@ -10,34 +10,13 @@
 // @TODO@ Non-Euclidan geometry.
 // @TODO@ Have a random leader boid.
 
-constexpr i32    PIXELS_PER_METER                  = 38;
+#if DEBUG
+constexpr i32    PROFILING_ITERATION_COUNT         = 0; // @NOTE@ `0` to not profile.
+#endif
+
 constexpr i32    BOID_AMOUNT                       = 512;
-constexpr f32    BOID_NEIGHBORHOOD_RADIUS          = 1.0f;
-constexpr f32    MINIMUM_RADIUS                    = 0.005f;
-constexpr f32    SEPARATION_WEIGHT                 = 16.0f;
-constexpr f32    ALIGNMENT_WEIGHT                  = 4.0f;
-constexpr f32    COHESION_WEIGHT                   = 8.0f;
-constexpr f32    BORDER_WEIGHT                     = 32.0f;
-constexpr f32    ANGULAR_VELOCITY                  = 1.5f;
-constexpr f32    MINIMUM_DESIRED_MOVEMENT_DISTANCE = 0.01f;
-constexpr f32    BORDER_REPULSION_INITIAL_TANGENT  = -8.0f;
-constexpr f32    BORDER_REPULSION_FINAL_TANGENT    = 4.0f;
-constexpr f32    HEATMAP_SENSITIVITY               = 8.0f;
 constexpr bool32 USE_HELPER_THREADS                = false; // @TODO@ This is necessary as it's not possible to set `HELPER_THREADS_COUNT` to 0 as of now.
 constexpr i32    HELPER_THREAD_COUNT               = 4;
-constexpr f32    CAMERA_VELOCITY                   = 8.0f;
-constexpr f32    CAMERA_ACCELERATION               = 64.0f;
-constexpr f32    ZOOM_VELOCITY                     = 0.75f;
-constexpr f32    ZOOM_ACCELERATION                 = 8.0f;
-constexpr f32    ZOOM_MINIMUM_SCALE_FACTOR         = 0.5f;
-constexpr f32    ZOOM_MAXIMUM_SCALE_FACTOR         = 4.00f;
-constexpr f32    TIME_SCALAR_CHANGE_SPEED          = 1.0f;
-constexpr f32    TIME_SCALAR_MAXIMUM_SCALE_FACTOR  = 2.0f;
-constexpr f32    UPDATE_FREQUENCY                  = 1.0f / 60.0f;
-constexpr strlit FONT_FILE_PATH                    = "C:/code/misc/fonts/consola.ttf";
-constexpr i32    MAX_ITERATIONS_PER_FRAME          = 8;
-constexpr vf2    TESTING_BOX_COORDINATES           = { 180.0f, 24.0f };
-constexpr vf2    TESTING_BOX_DIMENSIONS            = { 90.0f, 20.0f };
 constexpr vf2    BOID_VERTICES[]                   =
 	{
 		{  3.0f,  0.0f },
@@ -47,18 +26,34 @@ constexpr vf2    BOID_VERTICES[]                   =
 		{  3.0f,  0.0f }
 	};
 
-const __m256 PACKED_COEFFICIENTS =
-	_mm256_set_ps
-	(
-		0.0f, 0.0f,
-		COHESION_WEIGHT, COHESION_WEIGHT,
-		ALIGNMENT_WEIGHT, ALIGNMENT_WEIGHT,
-		SEPARATION_WEIGHT * BOID_NEIGHBORHOOD_RADIUS, SEPARATION_WEIGHT * BOID_NEIGHBORHOOD_RADIUS
-	);
-
-#if DEBUG
-constexpr i32    PROFILING_ITERATION_COUNT         = 0; // @NOTE@ `0` to not profile.
-#endif
+struct Settings
+{
+	i32    pixels_per_meter                  = 38;
+	f32    boid_neighborhood_radius          = 1.0f;
+	f32    minimum_radius                    = 0.005f;
+	f32    separation_weight                 = 16.0f;
+	f32    alignment_weight                  = 4.0f;
+	f32    cohesion_weight                   = 8.0f;
+	f32    border_weight                     = 32.0f;
+	f32    angular_velocity                  = 1.5f;
+	f32    minimum_desired_movement_distance = 0.01f;
+	f32    border_repulsion_initial_tangent  = -8.0f;
+	f32    border_repulsion_final_tangent    = 4.0f;
+	f32    heatmap_sensitivity               = 8.0f;
+	f32    camera_velocity                   = 8.0f;
+	f32    camera_acceleration               = 64.0f;
+	f32    zoom_velocity                     = 0.75f;
+	f32    zoom_acceleration                 = 8.0f;
+	f32    zoom_minimum_scale_factor         = 0.5f;
+	f32    zoom_maximum_scale_factor         = 4.00f;
+	f32    time_scalar_change_speed          = 1.0f;
+	f32    time_scalar_maximum_scale_factor  = 2.0f;
+	f32    update_frequency                  = 1.0f / 60.0f;
+	strlit font_file_path                    = "C:/code/misc/fonts/consola.ttf";
+	i32    max_iterations_per_frame          = 8;
+	vf2    testing_box_coordinates           = { 180.0f, 24.0f };
+	vf2    testing_box_dimensions            = {  90.0f, 20.0f };
+};
 
 struct Boid
 {
@@ -102,6 +97,7 @@ struct HelperThreadData
 
 struct State
 {
+	Settings         settings;
 	SDL_Cursor*      default_cursor;
 	SDL_Cursor*      grab_cursor;
 	bool32           is_debug_cursor_down;

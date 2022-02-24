@@ -236,20 +236,31 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 	IndexBufferNode* current_index_buffer_node = chunk_node->index_buffer_node;
 
 	// @TODO@ Perhaps a better way to prefetch the surrounding `index_buffer_node`s.
-	constexpr i32 CHUNKS_WIDE = 2 * pxd_ceil(BOID_NEIGHBORHOOD_RADIUS) + 1;
-	IndexBufferNode* surrounding_index_buffer_nodes[CHUNKS_WIDE * CHUNKS_WIDE];
-	FOR_RANGE(i, 0, CHUNKS_WIDE)
+	i32 chunks_wide = 2 * pxd_ceil(state->settings.boid_neighborhood_radius) + 1;
+	IndexBufferNode* surrounding_index_buffer_nodes[100] = {}; // @TODO@ Hack! VLA not supported :(.
+	FOR_RANGE(i, 0, chunks_wide)
 	{
-		FOR_RANGE(j, 0, CHUNKS_WIDE)
+		FOR_RANGE(j, 0, chunks_wide)
 		{
-			ChunkNode** surrounding_chunk_node = find_chunk_node(&state->map, chunk_node->x + i - CHUNKS_WIDE / 2, chunk_node->y + j - CHUNKS_WIDE / 2);
+			ChunkNode** surrounding_chunk_node = find_chunk_node(&state->map, chunk_node->x + i - chunks_wide / 2, chunk_node->y + j - chunks_wide / 2);
 
-			surrounding_index_buffer_nodes[i * CHUNKS_WIDE + j] =
+			ASSERT(IN_RANGE(i * chunks_wide + j, 0, 100));
+			surrounding_index_buffer_nodes[i * chunks_wide + j] =
 				*surrounding_chunk_node
 					? (*surrounding_chunk_node)->index_buffer_node
 					: 0;
 		}
 	}
+
+	// @TODO@ Maybe cache this?
+	__m256 packed_coefficients =
+		_mm256_set_ps
+		(
+			0.0f, 0.0f,
+			state->settings.cohesion_weight, state->settings.cohesion_weight,
+			state->settings.alignment_weight, state->settings.alignment_weight,
+			state->settings.separation_weight * state->settings.boid_neighborhood_radius, state->settings.separation_weight * state->settings.boid_neighborhood_radius
+		);
 
 	do
 	{
@@ -270,7 +281,7 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 							vf2 to_other          = state->map.old_boids[*other_boid_index].position - old_boid->position;
 							f32 distance_to_other = norm(to_other);
 
-							if (IN_RANGE(distance_to_other, MINIMUM_RADIUS, BOID_NEIGHBORHOOD_RADIUS))
+							if (IN_RANGE(distance_to_other, state->settings.minimum_radius, state->settings.boid_neighborhood_radius))
 							{
 								++neighboring_boid_count;
 
@@ -294,24 +305,24 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 
 			if (neighboring_boid_count)
 			{
-				packed_factors = _mm256_mul_ps(_mm256_div_ps(packed_factors, _mm256_set1_ps(static_cast<f32>(neighboring_boid_count))), PACKED_COEFFICIENTS);
+				packed_factors = _mm256_mul_ps(_mm256_div_ps(packed_factors, _mm256_set1_ps(static_cast<f32>(neighboring_boid_count))), packed_coefficients);
 			}
 
 			// @TODO@ The extraction of floats here might be Windows specific.
 			vf2 desired_movement =
 				{
-					packed_factors.m256_f32[0] + packed_factors.m256_f32[2] + packed_factors.m256_f32[4] + signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.x * PIXELS_PER_METER / WINDOW_WIDTH  * 2.0f) * BORDER_WEIGHT,
-					packed_factors.m256_f32[1] + packed_factors.m256_f32[3] + packed_factors.m256_f32[5] + signed_unit_curve(BORDER_REPULSION_INITIAL_TANGENT, BORDER_REPULSION_FINAL_TANGENT, 1.0f - old_boid->position.y * PIXELS_PER_METER / WINDOW_HEIGHT * 2.0f) * BORDER_WEIGHT
+					packed_factors.m256_f32[0] + packed_factors.m256_f32[2] + packed_factors.m256_f32[4] + signed_unit_curve(state->settings.border_repulsion_initial_tangent, state->settings.border_repulsion_final_tangent, 1.0f - old_boid->position.x * state->settings.pixels_per_meter / WINDOW_WIDTH  * 2.0f) * state->settings.border_weight,
+					packed_factors.m256_f32[1] + packed_factors.m256_f32[3] + packed_factors.m256_f32[5] + signed_unit_curve(state->settings.border_repulsion_initial_tangent, state->settings.border_repulsion_final_tangent, 1.0f - old_boid->position.y * state->settings.pixels_per_meter / WINDOW_HEIGHT * 2.0f) * state->settings.border_weight
 				};
 
 			f32 desired_movement_distance = norm(desired_movement);
 
-			if (desired_movement_distance > MINIMUM_DESIRED_MOVEMENT_DISTANCE)
+			if (desired_movement_distance > state->settings.minimum_desired_movement_distance)
 			{
 				// @TODO@ Still need to figure out the best way to steer boids...
 
 				vf2 desired_direction = desired_movement / desired_movement_distance;
-				f32 step              = ANGULAR_VELOCITY * state->simulation_time_scalar * UPDATE_FREQUENCY;
+				f32 step              = state->settings.angular_velocity * state->simulation_time_scalar * state->settings.update_frequency;
 				f32 angle             = pxd_arccos(CLAMP(dot(old_boid->direction, desired_direction), -1.0f, 1.0f));
 
 				if (angle <= step)
@@ -330,7 +341,7 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 				state->map.new_boids[*boid_index].direction = old_boid->direction;
 			}
 
-			state->map.new_boids[*boid_index].position = old_boid->position + state->boid_velocity * old_boid->direction * state->simulation_time_scalar * UPDATE_FREQUENCY;
+			state->map.new_boids[*boid_index].position = old_boid->position + state->boid_velocity * old_boid->direction * state->simulation_time_scalar * state->settings.update_frequency;
 		}
 
 		current_index_buffer_node = current_index_buffer_node->next_node;
@@ -378,29 +389,29 @@ void render_fill_rect(SDL_Renderer* renderer, vf2 bottom_left, vf2 dimensions)
 
 void update_simulation(State* state)
 {
-	state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * CAMERA_VELOCITY : vf2 { 0.0f, 0.0f };
-	state->camera_velocity         = inch_towards(state->camera_velocity, state->camera_velocity_target, CAMERA_ACCELERATION * UPDATE_FREQUENCY);
-	state->camera_position        += state->camera_velocity * UPDATE_FREQUENCY;
+	state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * state->settings.camera_velocity : vf2 { 0.0f, 0.0f };
+	state->camera_velocity         = inch_towards(state->camera_velocity, state->camera_velocity_target, state->settings.camera_acceleration * state->settings.update_frequency);
+	state->camera_position        += state->camera_velocity * state->settings.update_frequency;
 
-	state->camera_zoom_velocity_target  = state->arrow_keys.y * ZOOM_VELOCITY * state->camera_zoom;
-	state->camera_zoom_velocity         = inch_towards(state->camera_zoom_velocity, state->camera_zoom_velocity_target, ZOOM_ACCELERATION * UPDATE_FREQUENCY);
-	state->camera_zoom                 += state->camera_zoom_velocity * UPDATE_FREQUENCY;
+	state->camera_zoom_velocity_target  = state->arrow_keys.y * state->settings.zoom_velocity * state->camera_zoom;
+	state->camera_zoom_velocity         = inch_towards(state->camera_zoom_velocity, state->camera_zoom_velocity_target, state->settings.zoom_acceleration * state->settings.update_frequency);
+	state->camera_zoom                 += state->camera_zoom_velocity * state->settings.update_frequency;
 
-	if (state->camera_zoom < ZOOM_MINIMUM_SCALE_FACTOR)
+	if (state->camera_zoom < state->settings.zoom_minimum_scale_factor)
 	{
 		state->camera_zoom_velocity_target = 0.0f;
 		state->camera_zoom_velocity        = 0.0f;
-		state->camera_zoom                 = ZOOM_MINIMUM_SCALE_FACTOR;
+		state->camera_zoom                 = state->settings.zoom_minimum_scale_factor;
 	}
-	else if (state->camera_zoom > ZOOM_MAXIMUM_SCALE_FACTOR)
+	else if (state->camera_zoom > state->settings.zoom_maximum_scale_factor)
 	{
 		state->camera_zoom_velocity_target = 0.0f;
 		state->camera_zoom_velocity        = 0.0f;
-		state->camera_zoom                 = ZOOM_MAXIMUM_SCALE_FACTOR;
+		state->camera_zoom                 = state->settings.zoom_maximum_scale_factor;
 	}
 
-	state->simulation_time_scalar += state->arrow_keys.x * TIME_SCALAR_CHANGE_SPEED * UPDATE_FREQUENCY;
-	state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, TIME_SCALAR_MAXIMUM_SCALE_FACTOR);
+	state->simulation_time_scalar += state->arrow_keys.x * state->settings.time_scalar_change_speed * state->settings.update_frequency;
+	state->simulation_time_scalar  = CLAMP(state->simulation_time_scalar, 0.0f, state->settings.time_scalar_maximum_scale_factor);
 
 	if (USE_HELPER_THREADS)
 	{
@@ -451,6 +462,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
+	state->settings                         = {};
 	state->is_debug_cursor_down             = false;
 	state->debug_cursor_position            = { 0.0f, 0.0f };
 	state->last_debug_cursor_click_position = { 0.0f, 0.0f };
@@ -470,7 +482,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 	FOR_ELEMS(old_boid, state->map.old_boids, BOID_AMOUNT)
 	{
 		old_boid->direction = polar(rand_range(&state->seed, 0.0f, TAU));
-		old_boid->position  = { rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_WIDTH) / PIXELS_PER_METER), rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER) };
+		old_boid->position  = { rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_WIDTH) / state->settings.pixels_per_meter), rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_HEIGHT) / state->settings.pixels_per_meter) };
 
 		push_index_into_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), old_boid_index);
 	}
@@ -480,7 +492,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 	state->wasd                        = { 0.0f, 0.0f };
 	state->camera_velocity_target      = { 0.0f, 0.0f };
 	state->camera_velocity             = { 0.0f, 0.0f };
-	state->camera_position             = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / PIXELS_PER_METER / 2.0f;
+	state->camera_position             = vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / static_cast<f32>(state->settings.pixels_per_meter) / 2.0f;
 	state->camera_zoom_velocity_target = 0.0f;
 	state->camera_zoom_velocity        = 0.0f;
 	state->camera_zoom                 = 1.0f;
@@ -498,7 +510,7 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 	state->debug_font     = FC_CreateFont();
 
 	#if DEBUG
-	if (!FC_LoadFont(state->debug_font, program->debug_renderer, FONT_FILE_PATH, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL))
+	if (!FC_LoadFont(state->debug_font, program->debug_renderer, state->settings.font_file_path, 20, FC_MakeColor(245, 245, 245, 255), TTF_STYLE_NORMAL))
 	{
 		ASSERT(false);
 	}
@@ -622,8 +634,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 					if
 					(
 						state->is_debug_cursor_down &&
-						IN_RANGE(state->last_debug_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
-						IN_RANGE(state->last_debug_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
+						IN_RANGE(state->last_debug_cursor_click_position.x - state->settings.testing_box_coordinates.x, 0.0f, state->settings.testing_box_dimensions.x) &&
+						IN_RANGE(state->last_debug_cursor_click_position.y - state->settings.testing_box_coordinates.y, 0.0f, state->settings.testing_box_dimensions.y)
 					)
 					{
 						state->boid_velocity = state->held_boid_velocity + (state->debug_cursor_position.x - state->last_debug_cursor_click_position.x) / 100.0f;
@@ -648,8 +660,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 						if
 						(
-							IN_RANGE(state->last_debug_cursor_click_position.x - TESTING_BOX_COORDINATES.x, 0.0f, TESTING_BOX_DIMENSIONS.x) &&
-							IN_RANGE(state->last_debug_cursor_click_position.y - TESTING_BOX_COORDINATES.y, 0.0f, TESTING_BOX_DIMENSIONS.y)
+							IN_RANGE(state->last_debug_cursor_click_position.x - state->settings.testing_box_coordinates.x, 0.0f, state->settings.testing_box_dimensions.x) &&
+							IN_RANGE(state->last_debug_cursor_click_position.y - state->settings.testing_box_coordinates.y, 0.0f, state->settings.testing_box_dimensions.y)
 						)
 						{
 							state->held_boid_velocity = state->boid_velocity;
@@ -701,14 +713,14 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 	state->real_world_counter_seconds += program->delta_seconds;
 
-	if (state->real_world_counter_seconds >= UPDATE_FREQUENCY)
+	if (state->real_world_counter_seconds >= state->settings.update_frequency)
 	{
-		FOR_RANGE(i_, 0, MAX_ITERATIONS_PER_FRAME)
+		FOR_RANGE(i_, 0, state->settings.max_iterations_per_frame)
 		{
 			update_simulation(state);
 
-			state->real_world_counter_seconds -= UPDATE_FREQUENCY;
-			if (state->real_world_counter_seconds <= UPDATE_FREQUENCY)
+			state->real_world_counter_seconds -= state->settings.update_frequency;
+			if (state->real_world_counter_seconds <= state->settings.update_frequency)
 			{
 				break;
 			}
@@ -730,15 +742,15 @@ extern "C" PROTOTYPE_UPDATE(update)
 				{
 					redness += node->index_count;
 				}
-				redness *= HEATMAP_SENSITIVITY;
+				redness *= state->settings.heatmap_sensitivity;
 
 				SDL_SetRenderDrawColor(program->renderer, static_cast<u8>(CLAMP(redness, 0, 255)), 0, 0, 255);
 
 				render_fill_rect
 				(
 					program->renderer,
-					(vf2 ( current_chunk_node->x, current_chunk_node->y ) - state->camera_position) * PIXELS_PER_METER * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f,
-					vf2 ( 1.0f, 1.0f ) * PIXELS_PER_METER * state->camera_zoom
+					(vf2 ( current_chunk_node->x, current_chunk_node->y ) - state->camera_position) * static_cast<f32>(state->settings.pixels_per_meter) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f,
+					vf2 ( 1.0f, 1.0f ) * static_cast<f32>(state->settings.pixels_per_meter) * state->camera_zoom
 				);
 			}
 		}
@@ -749,14 +761,14 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		// @TODO@ Works for now. Maybe it can be cleaned up some how?
 		SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
-		FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_WIDTH) / PIXELS_PER_METER / state->camera_zoom) + 1)
+		FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_WIDTH) / state->settings.pixels_per_meter / state->camera_zoom) + 1)
 		{
-			f32 x = (pxd_floor(state->camera_position.x - WINDOW_WIDTH / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.x) * state->camera_zoom * PIXELS_PER_METER + WINDOW_WIDTH / 2.0f;
+			f32 x = (pxd_floor(state->camera_position.x - WINDOW_WIDTH / 2.0f / state->settings.pixels_per_meter / state->camera_zoom + i) - state->camera_position.x) * state->camera_zoom * state->settings.pixels_per_meter + WINDOW_WIDTH / 2.0f;
 			render_line(program->renderer, vf2 ( x, 0.0f ), vf2 ( x, WINDOW_HEIGHT ));
 		}
-		FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_HEIGHT) / PIXELS_PER_METER / state->camera_zoom) + 1)
+		FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_HEIGHT) / state->settings.pixels_per_meter / state->camera_zoom) + 1)
 		{
-			f32 y = (pxd_floor(state->camera_position.y - WINDOW_HEIGHT / 2.0f / PIXELS_PER_METER / state->camera_zoom + i) - state->camera_position.y) * state->camera_zoom * PIXELS_PER_METER + WINDOW_HEIGHT / 2.0f;
+			f32 y = (pxd_floor(state->camera_position.y - WINDOW_HEIGHT / 2.0f / state->settings.pixels_per_meter / state->camera_zoom + i) - state->camera_position.y) * state->camera_zoom * state->settings.pixels_per_meter + WINDOW_HEIGHT / 2.0f;
 			render_line(program->renderer, vf2 ( 0.0f, y ), vf2 ( WINDOW_WIDTH, y ));
 		}
 
@@ -768,7 +780,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		FOR_ELEMS(old_boid, state->map.old_boids, BOID_AMOUNT)
 		{
-			vf2 pixel_offset = (old_boid->position - state->camera_position) * static_cast<f32>(PIXELS_PER_METER) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
+			vf2 pixel_offset = (old_boid->position - state->camera_position) * static_cast<f32>(state->settings.pixels_per_meter) * state->camera_zoom + vf2 ( WINDOW_WIDTH, WINDOW_HEIGHT ) / 2.0f;
 
 			if (IN_RANGE(pixel_offset.x, 0.0f, WINDOW_WIDTH) && IN_RANGE(pixel_offset.y, 0.0f, WINDOW_HEIGHT))
 			{
@@ -819,7 +831,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 		);
 
 		SDL_SetRenderDrawColor(program->debug_renderer, 128, 128, 0, 255);
-		SDL_Rect TESTING_rect = { static_cast<i32>(TESTING_BOX_COORDINATES.x), static_cast<i32>(TESTING_BOX_COORDINATES.y), static_cast<i32>(TESTING_BOX_DIMENSIONS.x), static_cast<i32>(TESTING_BOX_DIMENSIONS.y) };
+		SDL_Rect TESTING_rect = { static_cast<i32>(state->settings.testing_box_coordinates.x), static_cast<i32>(state->settings.testing_box_coordinates.y), static_cast<i32>(state->settings.testing_box_dimensions.x), static_cast<i32>(state->settings.testing_box_dimensions.y) };
 		SDL_RenderFillRect(program->debug_renderer, &TESTING_rect);
 
 		// @TODO@ Accurate way to get FPS.
@@ -830,7 +842,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			5,
 			5,
 			"FPS : %d\nBoid Velocity : %f\nTime Scalar : %f\nUsed     : %llub\nCapacity : %llub\nPercent  : %f%%",
-			pxd_round(1.0f / MAXIMUM(program->delta_seconds, UPDATE_FREQUENCY)),
+			pxd_round(1.0f / MAXIMUM(program->delta_seconds, state->settings.update_frequency)),
 			state->boid_velocity,
 			state->simulation_time_scalar,
 			state->map.arena.used,
