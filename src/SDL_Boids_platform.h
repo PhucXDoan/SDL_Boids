@@ -15,26 +15,26 @@
 #define gibibytes_of(N) (1024LL * mebibytes_of(N))
 #define tebibytes_of(N) (1024LL * gibibytes_of(N))
 
-constexpr memsize MEMORY_CAPACITY            = mebibytes_of(1);
-constexpr strlit  PROGRAM_DLL_FILE_PATH      = "W:/build/SDL_Boids.dll";
-constexpr strlit  PROGRAM_DLL_TEMP_FILE_PATH = "W:/build/SDL_Boids.dll.temp";
-constexpr strlit  LOCK_FILE_PATH             = "W:/build/LOCK.tmp";
+global constexpr memsize MEMORY_CAPACITY            = mebibytes_of(1);
+global constexpr strlit  PROGRAM_DLL_FILE_PATH      = "W:/build/SDL_Boids.dll";
+global constexpr strlit  PROGRAM_DLL_TEMP_FILE_PATH = "W:/build/SDL_Boids.dll.temp";
+global constexpr strlit  LOCK_FILE_PATH             = "W:/build/LOCK.tmp";
 
 #if DEBUG
-constexpr i32     DEBUG_WINDOW_WIDTH         = 500;
-constexpr i32     DEBUG_WINDOW_HEIGHT        = 500;
-constexpr i32     DEBUG_WINDOW_COORDINATES_X = 950;
-constexpr i32     DEBUG_WINDOW_COORDINATES_Y = 400;
+global constexpr i32     DEBUG_WINDOW_WIDTH         = 500;
+global constexpr i32     DEBUG_WINDOW_HEIGHT        = 500;
+global constexpr i32     DEBUG_WINDOW_COORDINATES_X = 950;
+global constexpr i32     DEBUG_WINDOW_COORDINATES_Y = 400;
 
-constexpr i32     WINDOW_WIDTH               = 960;
-constexpr i32     WINDOW_HEIGHT              = 540;
-constexpr i32     WINDOW_COORDINATES_X       = 50;
-constexpr i32     WINDOW_COORDINATES_Y       = 150;
+global constexpr i32     WINDOW_WIDTH               = 960;
+global constexpr i32     WINDOW_HEIGHT              = 540;
+global constexpr i32     WINDOW_COORDINATES_X       = 50;
+global constexpr i32     WINDOW_COORDINATES_Y       = 150;
 #else
-constexpr i32     WINDOW_WIDTH               = 1280;
-constexpr i32     WINDOW_HEIGHT              = 720;
-constexpr i32     WINDOW_COORDINATES_X       = SDL_WINDOWPOS_UNDEFINED;
-constexpr i32     WINDOW_COORDINATES_Y       = SDL_WINDOWPOS_UNDEFINED;
+global constexpr i32     WINDOW_WIDTH               = 1280;
+global constexpr i32     WINDOW_HEIGHT              = 720;
+global constexpr i32     WINDOW_COORDINATES_X       = SDL_WINDOWPOS_UNDEFINED;
+global constexpr i32     WINDOW_COORDINATES_Y       = SDL_WINDOWPOS_UNDEFINED;
 #endif
 
 struct Program

@@ -11,13 +11,13 @@
 // @TODO@ Have a random leader boid.
 
 #if DEBUG
-constexpr i32    PROFILING_ITERATION_COUNT         = 0; // @NOTE@ `0` to not profile.
+global constexpr i32    PROFILING_ITERATION_COUNT = 0; // @NOTE@ `0` to not profile.
 #endif
 
-constexpr i32    BOID_AMOUNT                       = 512;
-constexpr bool32 USE_HELPER_THREADS                = false; // @TODO@ This is necessary as it's not possible to set `HELPER_THREADS_COUNT` to 0 as of now.
-constexpr i32    HELPER_THREAD_COUNT               = 4;
-constexpr vf2    BOID_VERTICES[]                   =
+global constexpr i32    BOID_AMOUNT         = 512;
+global constexpr bool32 USE_HELPER_THREADS  = false; // @TODO@ This is necessary as it's not possible to set `HELPER_THREADS_COUNT` to 0 as of now.
+global constexpr i32    HELPER_THREAD_COUNT = 4;
+global constexpr vf2    BOID_VERTICES[]     =
 	{
 		{  3.0f,  0.0f },
 		{ -3.0f,  2.0f },
@@ -40,7 +40,7 @@ struct Settings
 	f32    border_repulsion_initial_tangent  = -8.0f;
 	f32    border_repulsion_final_tangent    = 4.0f;
 	f32    heatmap_sensitivity               = 8.0f;
-	f32    camera_velocity                   = 8.0f;
+	f32    camera_velocity                   = 16.0f;
 	f32    camera_acceleration               = 64.0f;
 	f32    zoom_velocity                     = 0.75f;
 	f32    zoom_acceleration                 = 8.0f;

@@ -1,65 +1,28 @@
 #include "SDL_Boids.h"
 
 // @TODO@ Implement the math functions.
-inline vf2 polar(f32 rad)
+internal inline vf2 polar(f32 rad)
 {
 	return { cosf(rad), sinf(rad) };
 }
 
-inline f32 pxd_arccos(f32 rad)
-{
-	return acosf(rad);
-}
-
-inline vf2 complex_mult(vf2 a, vf2 b)
+internal inline vf2 complex_mult(vf2 a, vf2 b)
 {
 	return { a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x };
 }
 
-inline f32 norm(vf2 v)
+internal inline f32 norm(vf2 v)
 {
-	return static_cast<f32>(sqrt(v.x * v.x + v.y * v.y));
+	return sqrtf(v.x * v.x + v.y * v.y);
 }
 
-inline vf2 normalize(vf2 v)
-{
-	f32 n = norm(v);
-	ASSERT(n);
-	return v / n;
-}
-
-inline constexpr i32 pxd_floor(f32 f)
-{
-	i32 t = static_cast<i32>(f);
-	return t + ((f < 0.0f && f - t) ? -1 : 0);
-}
-
-inline constexpr i32 pxd_ceil(f32 f)
-{
-	return -pxd_floor(-f);
-}
-
-inline constexpr i32 pxd_round(f32 f)
-{
-	return pxd_floor(f + 0.5f);
-}
-
-inline constexpr i32 pxd_trunc(f32 f)
-{
-	return static_cast<i32>(f);
-}
-
-inline constexpr i32 pxd_abs(i32 x)
-{
-	return x < 0 ? -x : x;
-}
-
-inline constexpr i32 pxd_sign(f32 f)
+internal inline constexpr i32 pxd_sign(f32 f)
 {
 	return f < 0.0f ? -1 : f > 0.0f ? 1 : 0;
 }
 
-inline f32 signed_unit_curve(f32 a, f32 b, f32 x)
+// @TODO@ Replace this with something better?
+internal inline f32 signed_unit_curve(f32 a, f32 b, f32 x)
 {
 	if (x < 0.0f)
 	{
@@ -73,12 +36,12 @@ inline f32 signed_unit_curve(f32 a, f32 b, f32 x)
 	}
 }
 
-inline f32 dot(vf2 u, vf2 v)
+internal inline f32 dot(vf2 u, vf2 v)
 {
 	return u.x * v.x + u.y * v.y;
 }
 
-IndexBufferNode* allocate_index_buffer_node(Map* map)
+internal IndexBufferNode* allocate_index_buffer_node(Map* map)
 {
 	if (map->available_index_buffer_node)
 	{
@@ -92,10 +55,13 @@ IndexBufferNode* allocate_index_buffer_node(Map* map)
 	}
 }
 
-ChunkNode** find_chunk_node(Map* map, i32 x, i32 y)
+internal ChunkNode** find_chunk_node(Map* map, i32 x, i32 y)
 {
 	// @TODO@ Better hash function.
-	i32         hash       = pxd_abs(x * 7 + y * 13) % ARRAY_CAPACITY(map->chunk_node_hash_table);
+	i32 hash = x * 7 + y * 13;
+	hash  = hash < 0 ? -hash : hash;
+	hash %= ARRAY_CAPACITY(map->chunk_node_hash_table);
+
 	ChunkNode** chunk_node = &map->chunk_node_hash_table[hash];
 
 	while (*chunk_node && ((*chunk_node)->x != x || (*chunk_node)->y != y))
@@ -106,7 +72,7 @@ ChunkNode** find_chunk_node(Map* map, i32 x, i32 y)
 	return chunk_node;
 }
 
-void push_index_into_map(Map* map, i32 x, i32 y, i32 index)
+internal void push_index_into_map(Map* map, i32 x, i32 y, i32 index)
 {
 	ChunkNode** chunk_node = find_chunk_node(map, x, y);
 
@@ -149,7 +115,7 @@ void push_index_into_map(Map* map, i32 x, i32 y, i32 index)
 	}
 }
 
-void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
+internal void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 {
 	ChunkNode** chunk_node = find_chunk_node(map, x, y);
 
@@ -202,18 +168,18 @@ void remove_index_from_map(Map* map, i32 x, i32 y, i32 index)
 }
 
 // @TODO@ Make this robust.
-inline u64 rand_u64(u64* seed)
+internal inline u64 rand_u64(u64* seed)
 {
 	*seed += 36133;
 	return *seed * *seed * 20661081381 + *seed * 53660987 - 5534096 / *seed;
 }
 
-inline f32 rand_range(u64* seed, f32 min, f32 max)
+internal inline f32 rand_range(u64* seed, f32 min, f32 max)
 {
 	return (rand_u64(seed) % 0xFFFFFFFF / static_cast<f32>(0xFFFFFFFF)) * (max - min);
 }
 
-inline f32 inch_towards(f32 start, f32 end, f32 step)
+internal inline f32 inch_towards(f32 start, f32 end, f32 step)
 {
 	f32 delta = end - start;
 	if (-step <= delta && delta <= step)
@@ -226,17 +192,17 @@ inline f32 inch_towards(f32 start, f32 end, f32 step)
 	}
 }
 
-inline vf2 inch_towards(vf2 start, vf2 end, f32 step)
+internal inline vf2 inch_towards(vf2 start, vf2 end, f32 step)
 {
 	return { inch_towards(start.x, end.x, step), inch_towards(start.y, end.y, step) };
 }
 
-void update_chunk_node(State* state, ChunkNode* chunk_node)
+internal void update_chunk_node(State* state, ChunkNode* chunk_node)
 {
 	IndexBufferNode* current_index_buffer_node = chunk_node->index_buffer_node;
 
 	// @TODO@ Perhaps a better way to prefetch the surrounding `index_buffer_node`s.
-	i32 chunks_wide = 2 * pxd_ceil(state->settings.boid_neighborhood_radius) + 1;
+	i32 chunks_wide = 2 * static_cast<i32>(ceilf(state->settings.boid_neighborhood_radius)) + 1;
 	IndexBufferNode* surrounding_index_buffer_nodes[100] = {}; // @TODO@ Hack! VLA not supported :(.
 	FOR_RANGE(i, 0, chunks_wide)
 	{
@@ -323,7 +289,7 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 
 				vf2 desired_direction = desired_movement / desired_movement_distance;
 				f32 step              = state->settings.angular_velocity * state->simulation_time_scalar * state->settings.update_frequency;
-				f32 angle             = pxd_arccos(CLAMP(dot(old_boid->direction, desired_direction), -1.0f, 1.0f));
+				f32 angle             = acosf(CLAMP(dot(old_boid->direction, desired_direction), -1.0f, 1.0f));
 
 				if (angle <= step)
 				{
@@ -349,7 +315,7 @@ void update_chunk_node(State* state, ChunkNode* chunk_node)
 	while (current_index_buffer_node);
 }
 
-int helper_thread_work(void* void_data)
+internal int helper_thread_work(void* void_data)
 {
 	HelperThreadData* data = reinterpret_cast<HelperThreadData*>(void_data);
 
@@ -368,12 +334,12 @@ int helper_thread_work(void* void_data)
 	return 0;
 }
 
-void render_line(SDL_Renderer* renderer, vf2 start, vf2 end)
+internal void render_line(SDL_Renderer* renderer, vf2 start, vf2 end)
 {
 	SDL_RenderDrawLine(renderer, static_cast<i32>(start.x), static_cast<i32>(WINDOW_HEIGHT - 1 - start.y), static_cast<i32>(end.x), static_cast<i32>(WINDOW_HEIGHT - 1 - end.y));
 }
 
-void render_lines(SDL_Renderer* renderer, vf2* points, i32 points_capacity)
+internal void render_lines(SDL_Renderer* renderer, vf2* points, i32 points_capacity)
 {
 	FOR_ELEMS(point, points, points_capacity - 1)
 	{
@@ -381,15 +347,15 @@ void render_lines(SDL_Renderer* renderer, vf2* points, i32 points_capacity)
 	}
 }
 
-void render_fill_rect(SDL_Renderer* renderer, vf2 bottom_left, vf2 dimensions)
+internal void render_fill_rect(SDL_Renderer* renderer, vf2 bottom_left, vf2 dimensions)
 {
 	SDL_Rect rect = { static_cast<i32>(bottom_left.x), static_cast<i32>(WINDOW_HEIGHT - 1 - bottom_left.y - dimensions.y), static_cast<i32>(dimensions.x), static_cast<i32>(dimensions.y) };
 	SDL_RenderFillRect(renderer, &rect);
 }
 
-void update_simulation(State* state)
+internal void update_simulation(State* state)
 {
-	state->camera_velocity_target  = +state->wasd ? normalize(state->wasd) * state->settings.camera_velocity : vf2 { 0.0f, 0.0f };
+	state->camera_velocity_target  = +state->wasd ? state->wasd / norm(state->wasd) * state->settings.camera_velocity : vf2 { 0.0f, 0.0f };
 	state->camera_velocity         = inch_towards(state->camera_velocity, state->camera_velocity_target, state->settings.camera_acceleration * state->settings.update_frequency);
 	state->camera_position        += state->camera_velocity * state->settings.update_frequency;
 
@@ -448,10 +414,10 @@ void update_simulation(State* state)
 	{
 		Boid* old_boid = &state->map.old_boids[new_boid_index];
 
-		if (pxd_floor(new_boid->position.x) != pxd_floor(old_boid->position.x) || pxd_floor(new_boid->position.y) != pxd_floor(old_boid->position.y))
+		if (floorf(new_boid->position.x) != floorf(old_boid->position.x) || floorf(new_boid->position.y) != floorf(old_boid->position.y))
 		{
-			remove_index_from_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), new_boid_index);
-			push_index_into_map  (&state->map, pxd_floor(new_boid->position.x), pxd_floor(new_boid->position.y), new_boid_index);
+			remove_index_from_map(&state->map, static_cast<i32>(floorf(old_boid->position.x)), static_cast<i32>(floorf(old_boid->position.y)), new_boid_index);
+			push_index_into_map  (&state->map, static_cast<i32>(floorf(new_boid->position.x)), static_cast<i32>(floorf(new_boid->position.y)), new_boid_index);
 		}
 	}
 
@@ -484,7 +450,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 		old_boid->direction = polar(rand_range(&state->seed, 0.0f, TAU));
 		old_boid->position  = { rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_WIDTH) / state->settings.pixels_per_meter), rand_range(&state->seed, 0.0f, static_cast<f32>(WINDOW_HEIGHT) / state->settings.pixels_per_meter) };
 
-		push_index_into_map(&state->map, pxd_floor(old_boid->position.x), pxd_floor(old_boid->position.y), old_boid_index);
+		push_index_into_map(&state->map, static_cast<i32>(floorf(old_boid->position.x)), static_cast<i32>(floorf(old_boid->position.y)), old_boid_index);
 	}
 
 	state->map.new_boids = PUSH(&state->map.arena, Boid, BOID_AMOUNT);
@@ -505,6 +471,7 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
+	state->settings       = {}; // @TODO@ Use vars file.
 	state->default_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
 	state->grab_cursor    = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND); // @TODO@ Have a handgrab cursor. This one is ugly.
 	state->debug_font     = FC_CreateFont();
@@ -761,14 +728,14 @@ extern "C" PROTOTYPE_UPDATE(update)
 
 		// @TODO@ Works for now. Maybe it can be cleaned up some how?
 		SDL_SetRenderDrawColor(program->renderer, 64, 64, 64, 255);
-		FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_WIDTH) / state->settings.pixels_per_meter / state->camera_zoom) + 1)
+		FOR_RANGE(i, 0, ceilf(static_cast<f32>(WINDOW_WIDTH) / state->settings.pixels_per_meter / state->camera_zoom) + 1)
 		{
-			f32 x = (pxd_floor(state->camera_position.x - WINDOW_WIDTH / 2.0f / state->settings.pixels_per_meter / state->camera_zoom + i) - state->camera_position.x) * state->camera_zoom * state->settings.pixels_per_meter + WINDOW_WIDTH / 2.0f;
+			f32 x = (floorf(state->camera_position.x - WINDOW_WIDTH / 2.0f / state->settings.pixels_per_meter / state->camera_zoom + i) - state->camera_position.x) * state->camera_zoom * state->settings.pixels_per_meter + WINDOW_WIDTH / 2.0f;
 			render_line(program->renderer, vf2 ( x, 0.0f ), vf2 ( x, WINDOW_HEIGHT ));
 		}
-		FOR_RANGE(i, 0, pxd_ceil(static_cast<f32>(WINDOW_HEIGHT) / state->settings.pixels_per_meter / state->camera_zoom) + 1)
+		FOR_RANGE(i, 0, ceilf(static_cast<f32>(WINDOW_HEIGHT) / state->settings.pixels_per_meter / state->camera_zoom) + 1)
 		{
-			f32 y = (pxd_floor(state->camera_position.y - WINDOW_HEIGHT / 2.0f / state->settings.pixels_per_meter / state->camera_zoom + i) - state->camera_position.y) * state->camera_zoom * state->settings.pixels_per_meter + WINDOW_HEIGHT / 2.0f;
+			f32 y = (floorf(state->camera_position.y - WINDOW_HEIGHT / 2.0f / state->settings.pixels_per_meter / state->camera_zoom + i) - state->camera_position.y) * state->camera_zoom * state->settings.pixels_per_meter + WINDOW_HEIGHT / 2.0f;
 			render_line(program->renderer, vf2 ( 0.0f, y ), vf2 ( WINDOW_WIDTH, y ));
 		}
 
@@ -842,7 +809,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			5,
 			5,
 			"FPS : %d\nBoid Velocity : %f\nTime Scalar : %f\nUsed     : %llub\nCapacity : %llub\nPercent  : %f%%",
-			pxd_round(1.0f / MAXIMUM(program->delta_seconds, state->settings.update_frequency)),
+			static_cast<i32>(roundf(1.0f / MAXIMUM(program->delta_seconds, state->settings.update_frequency))),
 			state->boid_velocity,
 			state->simulation_time_scalar,
 			state->map.arena.used,
