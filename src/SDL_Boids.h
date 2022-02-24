@@ -40,7 +40,7 @@ struct Settings
 	f32    border_repulsion_initial_tangent  = -8.0f;
 	f32    border_repulsion_final_tangent    = 4.0f;
 	f32    heatmap_sensitivity               = 8.0f;
-	f32    camera_velocity                   = 16.0f;
+	f32    camera_velocity                   = 8.0f;
 	f32    camera_acceleration               = 64.0f;
 	f32    zoom_velocity                     = 0.75f;
 	f32    zoom_acceleration                 = 8.0f;
@@ -123,3 +123,5 @@ struct State
 	f32              boid_velocity;
 	f32              held_boid_velocity;
 };
+
+#include "SDL_Boids_auxiliary.cpp"
