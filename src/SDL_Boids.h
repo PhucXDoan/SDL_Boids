@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <SDL.h>
 #include "unified.h"
+#include "String.h"
 #include "SDL_Boids_platform.h"
 
 // @TODO@ Render boids using textures?
@@ -40,9 +41,9 @@ struct Settings
 	f32    border_repulsion_initial_tangent  = -8.0f;
 	f32    border_repulsion_final_tangent    = 4.0f;
 	f32    heatmap_sensitivity               = 8.0f;
-	f32    camera_velocity                   = 8.0f;
+	f32    camera_speed                      = 8.0f;
 	f32    camera_acceleration               = 64.0f;
-	f32    zoom_velocity                     = 0.75f;
+	f32    zoom_speed                        = 0.75f;
 	f32    zoom_acceleration                 = 8.0f;
 	f32    zoom_minimum_scale_factor         = 0.5f;
 	f32    zoom_maximum_scale_factor         = 4.00f;

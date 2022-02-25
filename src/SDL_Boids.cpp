@@ -265,11 +265,11 @@ internal int helper_thread_work(void* void_data)
 
 internal void update_simulation(State* state)
 {
-	state->camera_velocity_target  = +state->wasd ? state->wasd / norm(state->wasd) * state->settings.camera_velocity : vf2 { 0.0f, 0.0f };
+	state->camera_velocity_target  = +state->wasd ? state->wasd / norm(state->wasd) * state->settings.camera_speed : vf2 { 0.0f, 0.0f };
 	state->camera_velocity         = inch_towards(state->camera_velocity, state->camera_velocity_target, state->settings.camera_acceleration * state->settings.update_frequency);
 	state->camera_position        += state->camera_velocity * state->settings.update_frequency;
 
-	state->camera_zoom_velocity_target  = state->arrow_keys.y * state->settings.zoom_velocity * state->camera_zoom;
+	state->camera_zoom_velocity_target  = state->arrow_keys.y * state->settings.zoom_speed * state->camera_zoom;
 	state->camera_zoom_velocity         = inch_towards(state->camera_zoom_velocity, state->camera_zoom_velocity_target, state->settings.zoom_acceleration * state->settings.update_frequency);
 	state->camera_zoom                 += state->camera_zoom_velocity * state->settings.update_frequency;
 
@@ -338,7 +338,118 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
-	state->settings                         = {};
+	state->settings = {};
+
+	SDL_RWops* vars_file = SDL_RWFromFile("W:/data/SDL_Boids.vars", "r"); // @TODO@ What are the consequences of not opening in binary mode?
+	if (vars_file == 0)
+	{
+		// @TODO@ @STICKY@ File does not exist.
+	}
+	else
+	{
+		// @TODO@ Better way to allocate memory?
+		String_Heap(vars_file_text, SDL_RWsize(vars_file));
+		SDL_RWread(vars_file, vars_file_text.data, vars_file_text.capacity, 1);
+
+		StringBuffer_Stack(property_name , 256);
+		StringBuffer_Stack(property_value, 256);
+
+		for (i32 i = 0; i < vars_file_text.capacity; ++i)
+		{
+			while (i < vars_file_text.capacity && vars_file_text.data[i] != ' ')
+			{
+				push_char(&property_name, vars_file_text.data[i]);
+				++i;
+			}
+
+			while (i < vars_file_text.capacity && vars_file_text.data[i] == ' ')
+			{
+				++i;
+			}
+
+			while (i < vars_file_text.capacity && vars_file_text.data[i] != '\n')
+			{
+				push_char(&property_value, vars_file_text.data[i]);
+				++i;
+			}
+
+			if (i > 0 && vars_file_text.data[i - 1] == '\r')
+			{
+				--property_value.count;
+			}
+
+			#define CHECK_PRIMITIVE_PROPERTY(FORMAT, PROPERTY_TYPE, PROPERTY_NAME)\
+			if (string_equal(&property_name, #PROPERTY_NAME))\
+			{\
+				auto parsed = parse_##PROPERTY_TYPE##(&property_value);\
+				DEBUG_printf("\"");\
+				FOR_ELEMS(c, property_name.data, property_name.count)\
+				{\
+					DEBUG_printf("%c", *c);\
+				}\
+				DEBUG_printf("\"");\
+				if (parsed.success)\
+				{\
+					DEBUG_printf(" : " FORMAT "\n", parsed.result);\
+					state->settings.##PROPERTY_NAME = parsed.result;\
+				}\
+				else\
+				{\
+					DEBUG_printf(" >>>> Failure : \"");\
+					FOR_ELEMS(c, property_value.data, property_value.count)\
+					{\
+						DEBUG_printf("%c", *c);\
+					}\
+					DEBUG_printf("\"\n");\
+				}\
+			}
+
+			;    CHECK_PRIMITIVE_PROPERTY("%d", i32, pixels_per_meter)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, boid_neighborhood_radius)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, minimum_radius)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, separation_weight)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, alignment_weight)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, cohesion_weight)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, border_weight)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, angular_velocity)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, minimum_desired_movement_distance)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, border_repulsion_initial_tangent)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, border_repulsion_final_tangent)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, heatmap_sensitivity)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, camera_speed)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, camera_acceleration)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, zoom_speed)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, zoom_acceleration)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, zoom_minimum_scale_factor)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, zoom_maximum_scale_factor)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, time_scalar_change_speed)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, time_scalar_maximum_scale_factor)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, update_frequency)
+			// else CHECK_PRIMITIVE_PROPERTY(font_file_path
+			else CHECK_PRIMITIVE_PROPERTY("%d", i32, max_iterations_per_frame)
+			// else CHECK_PRIMITIVE_PROPERTY(testing_box_coordinates
+			// else CHECK_PRIMITIVE_PROPERTY(testing_box_dimensions
+			else
+			{
+				DEBUG_printf("Unknown property: \"");
+				FOR_ELEMS(c, property_name.data, property_name.count)
+				{
+					DEBUG_printf("%c", *c);
+				}
+				DEBUG_printf("\"\n");\
+			}
+
+			#undef CHECK_PRIMITIVE_PROPERTY
+
+			property_name.count  = 0;
+			property_value.count = 0;
+		}
+
+
+		free(vars_file_text.data);
+		SDL_RWclose(vars_file);
+	}
+
 	state->is_debug_cursor_down             = false;
 	state->debug_cursor_position            = { 0.0f, 0.0f };
 	state->last_debug_cursor_click_position = { 0.0f, 0.0f };
@@ -381,7 +492,6 @@ extern "C" PROTOTYPE_BOOT_UP(boot_up)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
-	state->settings       = {}; // @TODO@ Use vars file.
 	state->default_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
 	state->grab_cursor    = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND); // @TODO@ Have a handgrab cursor. This one is ugly.
 	state->debug_font     = FC_CreateFont();

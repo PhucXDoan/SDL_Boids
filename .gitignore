@@ -1,6 +1,5 @@
 build/
-*.swp
-.vc/
-SDL2/
+data/
 lib/
+*.swp
 *.rdbg
