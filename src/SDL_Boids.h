@@ -29,31 +29,31 @@ global constexpr vf2    BOID_VERTICES[]     =
 
 struct Settings
 {
-	i32    pixels_per_meter                  = 38;
-	f32    boid_neighborhood_radius          = 1.0f;
-	f32    minimum_radius                    = 0.005f;
-	f32    separation_weight                 = 16.0f;
-	f32    alignment_weight                  = 4.0f;
-	f32    cohesion_weight                   = 8.0f;
-	f32    border_weight                     = 32.0f;
-	f32    angular_velocity                  = 1.5f;
-	f32    minimum_desired_movement_distance = 0.01f;
-	f32    border_repulsion_initial_tangent  = -8.0f;
-	f32    border_repulsion_final_tangent    = 4.0f;
-	f32    heatmap_sensitivity               = 8.0f;
-	f32    camera_speed                      = 8.0f;
-	f32    camera_acceleration               = 64.0f;
-	f32    zoom_speed                        = 0.75f;
-	f32    zoom_acceleration                 = 8.0f;
-	f32    zoom_minimum_scale_factor         = 0.5f;
-	f32    zoom_maximum_scale_factor         = 4.00f;
-	f32    time_scalar_change_speed          = 1.0f;
-	f32    time_scalar_maximum_scale_factor  = 2.0f;
-	f32    update_frequency                  = 1.0f / 60.0f;
-	strlit font_file_path                    = "C:/code/misc/fonts/consola.ttf";
-	i32    max_iterations_per_frame          = 8;
-	vf2    testing_box_coordinates           = { 180.0f, 24.0f };
-	vf2    testing_box_dimensions            = {  90.0f, 20.0f };
+	i32   pixels_per_meter                  = 38;
+	f32   boid_neighborhood_radius          = 1.0f;
+	f32   minimum_radius                    = 0.005f;
+	f32   separation_weight                 = 16.0f;
+	f32   alignment_weight                  = 4.0f;
+	f32   cohesion_weight                   = 8.0f;
+	f32   border_weight                     = 32.0f;
+	f32   angular_velocity                  = 1.5f;
+	f32   minimum_desired_movement_distance = 0.01f;
+	f32   border_repulsion_initial_tangent  = -8.0f;
+	f32   border_repulsion_final_tangent    = 4.0f;
+	f32   heatmap_sensitivity               = 8.0f;
+	f32   camera_speed                      = 8.0f;
+	f32   camera_acceleration               = 64.0f;
+	f32   zoom_speed                        = 0.75f;
+	f32   zoom_acceleration                 = 8.0f;
+	f32   zoom_minimum_scale_factor         = 0.5f;
+	f32   zoom_maximum_scale_factor         = 4.00f;
+	f32   time_scalar_change_speed          = 1.0f;
+	f32   time_scalar_maximum_scale_factor  = 2.0f;
+	f32   update_frequency                  = 1.0f / 60.0f;
+	char* font_file_path                    = "C:/code/misc/fonts/consola.ttf";
+	i32   max_iterations_per_frame          = 8;
+	vf2   testing_box_coordinates           = { 180.0f, 24.0f };
+	vf2   testing_box_dimensions            = {  90.0f, 20.0f };
 };
 
 struct Boid

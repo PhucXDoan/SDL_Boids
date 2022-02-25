@@ -48,26 +48,6 @@ internal inline bool32 string_equal(strlit cstr, StringBuffer* string_buffer)
 	return string_equal(string_buffer, cstr);
 }
 
-internal inline bool32 string_equal(StringBuffer* string_buffer_a, StringBuffer* string_buffer_b)
-{
-	if (string_buffer_a->count == string_buffer_b->count)
-	{
-		FOR_RANGE(i, 0, string_buffer_a->count)
-		{
-			if (string_buffer_a->data[i] != string_buffer_b->data[i])
-			{
-				return false;
-			}
-		}
-
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
 // @TODO@ Make this robust.
 bool32 parse_i32(StringBuffer* string_buffer, i32* result)
 {

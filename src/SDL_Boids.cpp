@@ -422,7 +422,19 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 			else CHECK_PRIMITIVE_PROPERTY("%f", f32, time_scalar_change_speed)
 			else CHECK_PRIMITIVE_PROPERTY("%f", f32, time_scalar_maximum_scale_factor)
 			else CHECK_PRIMITIVE_PROPERTY("%f", f32, update_frequency)
-			// else CHECK_PRIMITIVE_PROPERTY(font_file_path
+			else if (string_equal(&property_name, "font_file_path"))
+			{
+				DEBUG_print_StringBuffer(&property_name);
+				DEBUG_printf(" : ");
+				DEBUG_print_StringBuffer(&property_value);
+				DEBUG_printf("\n");
+				state->settings.font_file_path = reinterpret_cast<char*>(malloc(property_value.count + 1));
+				FOR_ELEMS(c, property_value.data, property_value.count)
+				{
+					state->settings.font_file_path[c_index] = *c;
+				}
+				state->settings.font_file_path[property_value.count] = '\0';
+			}
 			else CHECK_PRIMITIVE_PROPERTY("%d", i32, max_iterations_per_frame)
 			// else CHECK_PRIMITIVE_PROPERTY(testing_box_coordinates
 			// else CHECK_PRIMITIVE_PROPERTY(testing_box_dimensions
@@ -440,7 +452,6 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 			property_name.count  = 0;
 			property_value.count = 0;
 		}
-
 
 		free(vars_file_text.data);
 		SDL_RWclose(vars_file);
