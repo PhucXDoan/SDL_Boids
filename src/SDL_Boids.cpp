@@ -348,11 +348,14 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 	else
 	{
 		// @TODO@ Better way to allocate memory?
-		String_Heap(vars_file_text, SDL_RWsize(vars_file));
+		StringBuffer vars_file_text;
+		vars_file_text.count    = SDL_RWsize(vars_file);
+		vars_file_text.capacity = vars_file_text.count;
+		vars_file_text.data     = reinterpret_cast<char*>(malloc(vars_file_text.capacity));
 		SDL_RWread(vars_file, vars_file_text.data, vars_file_text.capacity, 1);
 
-		StringBuffer_Stack(property_name , 256);
-		StringBuffer_Stack(property_value, 256);
+		StringBuffer StringBuffer_Stack(property_name , 256);
+		StringBuffer StringBuffer_Stack(property_value, 256);
 
 		for (i32 i = 0; i < vars_file_text.capacity; ++i)
 		{
@@ -381,26 +384,20 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 			#define CHECK_PRIMITIVE_PROPERTY(FORMAT, PROPERTY_TYPE, PROPERTY_NAME)\
 			if (string_equal(&property_name, #PROPERTY_NAME))\
 			{\
-				auto parsed = parse_##PROPERTY_TYPE##(&property_value);\
-				DEBUG_printf("\"");\
-				FOR_ELEMS(c, property_name.data, property_name.count)\
+				PROPERTY_TYPE result;\
+				if (parse_##PROPERTY_TYPE##(&property_value, &result))\
 				{\
-					DEBUG_printf("%c", *c);\
-				}\
-				DEBUG_printf("\"");\
-				if (parsed.success)\
-				{\
-					DEBUG_printf(" : " FORMAT "\n", parsed.result);\
-					state->settings.##PROPERTY_NAME = parsed.result;\
+					DEBUG_print_StringBuffer(&property_name);\
+					DEBUG_printf(" : " FORMAT "\n", result);\
+					state->settings.##PROPERTY_NAME = result;\
 				}\
 				else\
 				{\
-					DEBUG_printf(" >>>> Failure : \"");\
-					FOR_ELEMS(c, property_value.data, property_value.count)\
-					{\
-						DEBUG_printf("%c", *c);\
-					}\
-					DEBUG_printf("\"\n");\
+					DEBUG_printf("\t>>>> Parse error : ");\
+					DEBUG_print_StringBuffer(&property_name);\
+					DEBUG_printf(" : ");\
+					DEBUG_print_StringBuffer(&property_value);\
+					DEBUG_printf("\n");\
 				}\
 			}
 
@@ -431,12 +428,11 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 			// else CHECK_PRIMITIVE_PROPERTY(testing_box_dimensions
 			else
 			{
-				DEBUG_printf("Unknown property: \"");
-				FOR_ELEMS(c, property_name.data, property_name.count)
-				{
-					DEBUG_printf("%c", *c);
-				}
-				DEBUG_printf("\"\n");\
+				DEBUG_printf("\t>>>> Unknown property : ");
+				DEBUG_print_StringBuffer(&property_name);
+				DEBUG_printf(" : ");
+				DEBUG_print_StringBuffer(&property_value);
+				DEBUG_printf("\n");
 			}
 
 			#undef CHECK_PRIMITIVE_PROPERTY

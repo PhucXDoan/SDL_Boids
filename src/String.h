@@ -1,15 +1,22 @@
-#define StringBuffer_Stack(NAME, CAPACITY) char (STRING_STACK_BUFFER_##NAME##__LINE__)[(CAPACITY)]; StringBuffer (NAME) = { 0, ARRAY_CAPACITY(STRING_STACK_BUFFER_##NAME##__LINE__), (STRING_STACK_BUFFER_##NAME##__LINE__) }
-#define String_Heap(NAME, CAPACITY)        String (NAME); (NAME).capacity = (CAPACITY); (NAME).data = reinterpret_cast<char*>(malloc((NAME).capacity))
+#define StringBuffer_Stack(NAME, CAPACITY) (NAME); char (STRING_STACK_BUFFER_##NAME##__LINE__)[(CAPACITY)]; (NAME) = { 0, ARRAY_CAPACITY(STRING_STACK_BUFFER_##NAME##__LINE__), (STRING_STACK_BUFFER_##NAME##__LINE__) }
+
+#if DEBUG
+#define DEBUG_print_StringBuffer(STRING_BUFFER)\
+DEBUG_printf("\"");\
+do\
+{\
+	FOR_ELEMS(c, (STRING_BUFFER)->data, (STRING_BUFFER)->count)\
+	{\
+		DEBUG_printf("%c", *c);\
+	}\
+	DEBUG_printf("\"");\
+}\
+while (false)
+#endif
 
 struct StringBuffer
 {
 	memsize count;
-	memsize capacity;
-	char*   data;
-};
-
-struct String
-{
 	memsize capacity;
 	char*   data;
 };
@@ -62,36 +69,41 @@ internal inline bool32 string_equal(StringBuffer* string_buffer_a, StringBuffer*
 }
 
 // @TODO@ Make this robust.
-struct { bool32 success; i32 result; } parse_i32(StringBuffer* string_buffer)
+bool32 parse_i32(StringBuffer* string_buffer, i32* result)
 {
 	if (string_buffer->count > 0)
 	{
 		bool32 is_negative = string_buffer->data[0] == '-';
-		i32    result      = 0;
+		*result = 0;
 
 		FOR_ELEMS(c, string_buffer->data + is_negative, string_buffer->count - is_negative)
 		{
 			if (IN_RANGE(*c, '0', '9' + 1))
 			{
-				result *= 10; // @TODO@ Overflow!
-				result += *c - '0';
+				*result *= 10; // @TODO@ Overflow!
+				*result += *c - '0';
 			}
 			else
 			{
-				return { false, 0 };
+				return false;
 			}
 		}
 
-		return { true, is_negative ? -result : result };
+		if (is_negative)
+		{
+			*result *= -1;
+		}
+
+		return true;
 	}
 	else
 	{
-		return { false, 0 };
+		return false;
 	}
 }
 
 // @TODO@ Make this robust.
-struct { bool32 success; f32 result; } parse_f32(StringBuffer* string_buffer)
+bool32 parse_f32(StringBuffer* string_buffer, f32* result)
 {
 	if (string_buffer->count > 0)
 	{
@@ -114,7 +126,7 @@ struct { bool32 success; f32 result; } parse_f32(StringBuffer* string_buffer)
 			}
 			else
 			{
-				return { false, 0.0f };
+				return false;
 			}
 		}
 
@@ -129,15 +141,16 @@ struct { bool32 success; f32 result; } parse_f32(StringBuffer* string_buffer)
 				}
 				else
 				{
-					return { false, 0.0f };
+					return false;
 				}
 			}
 		}
 
-		return { true, (is_negative ? -1.0f : 1.0f) * (whole + fractional) };
+		*result = (is_negative ? -1.0f : 1.0f) * (whole + fractional);
+		return true;
 	}
 	else
 	{
-		return { false, 0.0f };
+		return false;
 	}
 }
