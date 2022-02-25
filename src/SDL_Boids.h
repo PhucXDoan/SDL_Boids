@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <SDL.h>
 #include "unified.h"
-#include "String.h"
+#include "StringBuffer.h"
 #include "SDL_Boids_platform.h"
 
 // @TODO@ Render boids using textures?

@@ -349,7 +349,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 	{
 		// @TODO@ Better way to allocate memory?
 		StringBuffer vars_file_text;
-		vars_file_text.count    = SDL_RWsize(vars_file);
+		vars_file_text.count    = static_cast<i32>(SDL_RWsize(vars_file));
 		vars_file_text.capacity = vars_file_text.count;
 		vars_file_text.data     = reinterpret_cast<char*>(malloc(vars_file_text.capacity));
 		SDL_RWread(vars_file, vars_file_text.data, vars_file_text.capacity, 1);
@@ -382,13 +382,52 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 			}
 
 			#define CHECK_PRIMITIVE_PROPERTY(FORMAT, PROPERTY_TYPE, PROPERTY_NAME)\
-			if (string_equal(&property_name, #PROPERTY_NAME))\
+			if (string_buffer_equal(&property_name, #PROPERTY_NAME))\
 			{\
 				PROPERTY_TYPE result;\
 				if (parse_##PROPERTY_TYPE##(&property_value, &result))\
 				{\
 					DEBUG_print_StringBuffer(&property_name);\
 					DEBUG_printf(" : " FORMAT "\n", result);\
+					state->settings.##PROPERTY_NAME = result;\
+				}\
+				else\
+				{\
+					DEBUG_printf("\t>>>> Parse error : ");\
+					DEBUG_print_StringBuffer(&property_name);\
+					DEBUG_printf(" : ");\
+					DEBUG_print_StringBuffer(&property_value);\
+					DEBUG_printf("\n");\
+				}\
+			}
+
+			#define CHECK_VECTOR2_PROPERTY(PROPERTY_NAME)\
+			if (string_buffer_equal(&property_name, #PROPERTY_NAME))\
+			{\
+				i32 x_component_length = 0;\
+				FOR_ELEMS(c, property_value.data, property_value.count)\
+				{\
+					if (*c == ' ') { break; }\
+					else { ++x_component_length; }\
+				}\
+				i32 y_component_index = x_component_length;\
+				while (property_value.data[y_component_index] == ' ')\
+				{\
+					++y_component_index;\
+				}\
+				i32 y_component_length = 0;\
+				FOR_ELEMS(c, property_value.data + y_component_index, property_value.count - y_component_index)\
+				{\
+					if (*c == ' ') { break; }\
+					else { ++y_component_length; }\
+				}\
+				StringBuffer x_component = { x_component_length, x_component_length, property_value.data };\
+				StringBuffer y_component = { y_component_length, y_component_length, property_value.data + y_component_index };\
+				vf2 result;\
+				if (parse_f32(&x_component, &result.x) && parse_f32(&y_component, &result.y))\
+				{\
+					DEBUG_print_StringBuffer(&property_name);\
+					DEBUG_printf(" : %f %f\n", result.x, result.y);\
 					state->settings.##PROPERTY_NAME = result;\
 				}\
 				else\
@@ -422,7 +461,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 			else CHECK_PRIMITIVE_PROPERTY("%f", f32, time_scalar_change_speed)
 			else CHECK_PRIMITIVE_PROPERTY("%f", f32, time_scalar_maximum_scale_factor)
 			else CHECK_PRIMITIVE_PROPERTY("%f", f32, update_frequency)
-			else if (string_equal(&property_name, "font_file_path"))
+			else if (string_buffer_equal(&property_name, "font_file_path"))
 			{
 				DEBUG_print_StringBuffer(&property_name);
 				DEBUG_printf(" : ");
@@ -436,8 +475,8 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 				state->settings.font_file_path[property_value.count] = '\0';
 			}
 			else CHECK_PRIMITIVE_PROPERTY("%d", i32, max_iterations_per_frame)
-			// else CHECK_PRIMITIVE_PROPERTY(testing_box_coordinates
-			// else CHECK_PRIMITIVE_PROPERTY(testing_box_dimensions
+			else CHECK_VECTOR2_PROPERTY(testing_box_coordinates)
+			else CHECK_VECTOR2_PROPERTY(testing_box_dimensions)
 			else
 			{
 				DEBUG_printf("\t>>>> Unknown property : ");

@@ -16,9 +16,9 @@ while (false)
 
 struct StringBuffer
 {
-	memsize count;
-	memsize capacity;
-	char*   data;
+	i32   count;
+	i32   capacity;
+	char* data;
 };
 
 internal inline void push_char(StringBuffer* string_buffer, char c)
@@ -28,7 +28,7 @@ internal inline void push_char(StringBuffer* string_buffer, char c)
 	++string_buffer->count;
 }
 
-internal inline bool32 string_equal(StringBuffer* string_buffer, strlit cstr)
+internal inline bool32 string_buffer_equal(StringBuffer* string_buffer, strlit cstr)
 {
 	for (i32 i = 0;; ++i)
 	{
@@ -43,9 +43,9 @@ internal inline bool32 string_equal(StringBuffer* string_buffer, strlit cstr)
 	}
 }
 
-internal inline bool32 string_equal(strlit cstr, StringBuffer* string_buffer)
+internal inline bool32 string_buffer_equal(strlit cstr, StringBuffer* string_buffer)
 {
-	return string_equal(string_buffer, cstr);
+	return string_buffer_equal(string_buffer, cstr);
 }
 
 // @TODO@ Make this robust.
@@ -56,7 +56,7 @@ bool32 parse_i32(StringBuffer* string_buffer, i32* result)
 		bool32 is_negative = string_buffer->data[0] == '-';
 		*result = 0;
 
-		FOR_ELEMS(c, string_buffer->data + is_negative, string_buffer->count - is_negative)
+		FOR_ELEMS(c, string_buffer->data + (is_negative ? 1 : 0), string_buffer->count - (is_negative ? 1 : 0))
 		{
 			if (IN_RANGE(*c, '0', '9' + 1))
 			{
@@ -92,7 +92,7 @@ bool32 parse_f32(StringBuffer* string_buffer, f32* result)
 		f32    whole         = 0.0f;
 		f32    fractional    = 0.0f;
 
-		FOR_ELEMS(c, string_buffer->data + is_negative, string_buffer->count - is_negative)
+		FOR_ELEMS(c, string_buffer->data + (is_negative ? 1 : 0), string_buffer->count - (is_negative ? 1 : 0))
 		{
 			if (IN_RANGE(*c, '0', '9' + 1))
 			{
@@ -112,7 +112,7 @@ bool32 parse_f32(StringBuffer* string_buffer, f32* result)
 
 		if (decimal_index != -1)
 		{
-			for (memsize c_index = string_buffer->count - 1; c_index > decimal_index; --c_index)
+			for (i32 c_index = string_buffer->count - 1; c_index > decimal_index; --c_index)
 			{
 				if (IN_RANGE(string_buffer->data[c_index], '0', '9' + 1))
 				{
