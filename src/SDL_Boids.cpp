@@ -334,12 +334,8 @@ internal void update_simulation(State* state)
 	SWAP(state->map.new_boids, state->map.old_boids);
 }
 
-extern "C" PROTOTYPE_INITIALIZE(initialize)
+void fetch_settings(Settings* settings)
 {
-	State* state = reinterpret_cast<State*>(program->memory);
-
-	state->settings = {};
-
 	SDL_RWops* vars_file = SDL_RWFromFile("W:/data/SDL_Boids.vars", "r"); // @TODO@ What are the consequences of not opening in binary mode?
 	if (vars_file == 0)
 	{
@@ -389,7 +385,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 				{\
 					DEBUG_print_StringBuffer(&property_name);\
 					DEBUG_printf(" : " FORMAT "\n", result);\
-					state->settings.##PROPERTY_NAME = result;\
+					settings->##PROPERTY_NAME = result;\
 				}\
 				else\
 				{\
@@ -428,7 +424,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 				{\
 					DEBUG_print_StringBuffer(&property_name);\
 					DEBUG_printf(" : %f %f\n", result.x, result.y);\
-					state->settings.##PROPERTY_NAME = result;\
+					settings->##PROPERTY_NAME = result;\
 				}\
 				else\
 				{\
@@ -467,12 +463,12 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 				DEBUG_printf(" : ");
 				DEBUG_print_StringBuffer(&property_value);
 				DEBUG_printf("\n");
-				state->settings.font_file_path = reinterpret_cast<char*>(malloc(property_value.count + 1));
+				settings->font_file_path = reinterpret_cast<char*>(malloc(property_value.count + 1)); // @TODO@ Leak.
 				FOR_ELEMS(c, property_value.data, property_value.count)
 				{
-					state->settings.font_file_path[c_index] = *c;
+					settings->font_file_path[c_index] = *c;
 				}
-				state->settings.font_file_path[property_value.count] = '\0';
+				settings->font_file_path[property_value.count] = '\0';
 			}
 			else CHECK_PRIMITIVE_PROPERTY("%d", i32, max_iterations_per_frame)
 			else CHECK_VECTOR2_PROPERTY(testing_box_coordinates)
@@ -495,6 +491,14 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 		free(vars_file_text.data);
 		SDL_RWclose(vars_file);
 	}
+}
+
+extern "C" PROTOTYPE_INITIALIZE(initialize)
+{
+	State* state = reinterpret_cast<State*>(program->memory);
+
+	state->settings = {};
+	fetch_settings(&state->settings);
 
 	state->is_debug_cursor_down             = false;
 	state->debug_cursor_position            = { 0.0f, 0.0f };
