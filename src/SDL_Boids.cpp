@@ -381,7 +381,7 @@ void fetch_settings(Settings* settings)
 			if (string_buffer_equal(&property_name, #PROPERTY_NAME))\
 			{\
 				PROPERTY_TYPE result;\
-				if (parse_##PROPERTY_TYPE##(&property_value, &result))\
+				if (string_buffer_parse_##PROPERTY_TYPE##(&property_value, &result))\
 				{\
 					DEBUG_print_StringBuffer(&property_name);\
 					DEBUG_printf(" : " FORMAT "\n", result);\
@@ -389,11 +389,11 @@ void fetch_settings(Settings* settings)
 				}\
 				else\
 				{\
-					DEBUG_printf("\t>>>> Parse error : ");\
+					DEBUG_printf("\n\t>>>> Parse error : ");\
 					DEBUG_print_StringBuffer(&property_name);\
 					DEBUG_printf(" : ");\
 					DEBUG_print_StringBuffer(&property_value);\
-					DEBUG_printf("\n");\
+					DEBUG_printf("\n\n");\
 				}\
 			}
 
@@ -420,7 +420,7 @@ void fetch_settings(Settings* settings)
 				StringBuffer x_component = { x_component_length, x_component_length, property_value.data };\
 				StringBuffer y_component = { y_component_length, y_component_length, property_value.data + y_component_index };\
 				vf2 result;\
-				if (parse_f32(&x_component, &result.x) && parse_f32(&y_component, &result.y))\
+				if (string_buffer_parse_f32(&x_component, &result.x) && string_buffer_parse_f32(&y_component, &result.y))\
 				{\
 					DEBUG_print_StringBuffer(&property_name);\
 					DEBUG_printf(" : %f %f\n", result.x, result.y);\
@@ -428,11 +428,11 @@ void fetch_settings(Settings* settings)
 				}\
 				else\
 				{\
-					DEBUG_printf("\t>>>> Parse error : ");\
+					DEBUG_printf("\n\t>>>> Parse error : ");\
 					DEBUG_print_StringBuffer(&property_name);\
 					DEBUG_printf(" : ");\
 					DEBUG_print_StringBuffer(&property_value);\
-					DEBUG_printf("\n");\
+					DEBUG_printf("\n\n");\
 				}\
 			}
 

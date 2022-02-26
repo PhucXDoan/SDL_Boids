@@ -2,9 +2,9 @@
 
 #if DEBUG
 #define DEBUG_print_StringBuffer(STRING_BUFFER)\
-DEBUG_printf("\"");\
 do\
 {\
+	DEBUG_printf("\"");\
 	FOR_ELEMS(c, (STRING_BUFFER)->data, (STRING_BUFFER)->count)\
 	{\
 		DEBUG_printf("%c", *c);\
@@ -48,8 +48,19 @@ internal inline bool32 string_buffer_equal(strlit cstr, StringBuffer* string_buf
 	return string_buffer_equal(string_buffer, cstr);
 }
 
+/* @DOCUMENTATION@
+	Parsing of the string buffer is done according to these rules:
+		> Legal characters are digits (0-9) and '-'.
+		> Must have least one digit.
+		> There can be at most one '-'.
+		> If '-' exists, it must be the first character.
+		> The integer must be representable.
+	Note that:
+		> No other representation is allowed (e.g. hexadecimal).
+		> The value of `result` is undefined if a rule is violated.
+*/
 // @TODO@ Make this robust.
-bool32 parse_i32(StringBuffer* string_buffer, i32* result)
+bool32 string_buffer_parse_i32(StringBuffer* string_buffer, i32* result)
 {
 	if (string_buffer->count > 0)
 	{
@@ -82,12 +93,25 @@ bool32 parse_i32(StringBuffer* string_buffer, i32* result)
 	}
 }
 
+/* @DOCUMENTATION@
+	Parsing of the string buffer is done according to these rules:
+		> Legal characters are digits (0-9), '.', and '-'.
+		> Must have least one digit.
+		> There can be at most one '.'.
+		> There can be at most one '-'.
+		> If '-' exists, it must be the first character.
+	Note that:
+		> No other representation is allowed (e.g. `INFINITY`).
+		> The precision of the result compared to the string is not guaranteed equal.
+		> The value of `result` is undefined if a rule is violated.
+*/
 // @TODO@ Make this robust.
-bool32 parse_f32(StringBuffer* string_buffer, f32* result)
+bool32 string_buffer_parse_f32(StringBuffer* string_buffer, f32* result)
 {
 	if (string_buffer->count > 0)
 	{
 		bool32 is_negative   = string_buffer->data[0] == '-';
+		bool32 has_digit     = false;
 		i32    decimal_index = -1;
 		f32    whole         = 0.0f;
 		f32    fractional    = 0.0f;
@@ -96,8 +120,9 @@ bool32 parse_f32(StringBuffer* string_buffer, f32* result)
 		{
 			if (IN_RANGE(*c, '0', '9' + 1))
 			{
-				whole *= 10.0f; // @TODO@ Overflow!
-				whole += *c - '0';
+				whole     *= 10.0f; // @TODO@ Overflow!
+				whole     += *c - '0';
+				has_digit  = true;
 			}
 			else if (*c == '.')
 			{
@@ -118,6 +143,7 @@ bool32 parse_f32(StringBuffer* string_buffer, f32* result)
 				{
 					fractional += string_buffer->data[c_index] - '0';
 					fractional /= 10.0f;
+					has_digit   = true;
 				}
 				else
 				{
@@ -126,8 +152,15 @@ bool32 parse_f32(StringBuffer* string_buffer, f32* result)
 			}
 		}
 
-		*result = (is_negative ? -1.0f : 1.0f) * (whole + fractional);
-		return true;
+		if (has_digit)
+		{
+			*result = (is_negative ? -1.0f : 1.0f) * (whole + fractional);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
 	}
 	else
 	{
