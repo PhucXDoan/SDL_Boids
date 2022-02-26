@@ -2,13 +2,12 @@
 
 PROTOTYPE_UPDATE(program_update_fallback) {}
 
-time_t get_program_dll_modification_time(void)
+// @TODO@ Windows vs Unix shenanigans here... Resolve!
+PROTOTYPE_GET_FILE_MODIFICATION_TIME(get_file_modification_time)
 {
-	// @TODO@ Windows vs Unix shenanigans here... Resolve!
 	struct stat file_status;
-	if (stat(PROGRAM_DLL_FILE_PATH, &file_status))
+	if (stat(file_path, &file_status))
 	{
-		// @TODO@ File not found.
 		return {};
 	}
 	else
@@ -37,7 +36,7 @@ void reload_program_dll(HotloadingData* hotloading_data)
 	SDL_free(buffer);
 
 	hotloading_data->dll                   = reinterpret_cast<byte*>(SDL_LoadObject(PROGRAM_DLL_TEMP_FILE_PATH));
-	hotloading_data->dll_modification_time = get_program_dll_modification_time();
+	hotloading_data->dll_modification_time = get_file_modification_time(PROGRAM_DLL_FILE_PATH);
 	hotloading_data->initialize            = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "initialize"));
 	hotloading_data->boot_down             = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "boot_down"));
 	hotloading_data->boot_up               = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "boot_up"));
@@ -93,13 +92,14 @@ int main(int, char**)
 	#endif
 
 	Program program;
-	program.is_running          = true;
-	program.is_going_to_hotload = false;
-	program.delta_seconds       = 0.0f;
-	program.renderer            = window_renderer;
-	program.memory              = reinterpret_cast<byte*>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
-	program.memory_capacity     = MEMORY_CAPACITY;
-	program.window_id           = SDL_GetWindowID(window);
+	program.is_running                 = true;
+	program.is_going_to_hotload        = false;
+	program.delta_seconds              = 0.0f;
+	program.renderer                   = window_renderer;
+	program.memory                     = reinterpret_cast<byte*>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+	program.memory_capacity            = MEMORY_CAPACITY;
+	program.window_id                  = SDL_GetWindowID(window);
+	program.get_file_modification_time = get_file_modification_time;
 
 	#if DEBUG
 	program.debug_renderer      = debug_window_renderer;
@@ -118,7 +118,7 @@ int main(int, char**)
 		program.delta_seconds = static_cast<f32>(new_performance_count - performance_count) / SDL_GetPerformanceFrequency();
 		performance_count     = new_performance_count;
 
-		time_t current_program_dll_modification_time = get_program_dll_modification_time();
+		time_t current_program_dll_modification_time = get_file_modification_time(PROGRAM_DLL_FILE_PATH);
 		if (current_program_dll_modification_time != hotloading_data.dll_modification_time)
 		{
 			WIN32_FILE_ATTRIBUTE_DATA attributes_;

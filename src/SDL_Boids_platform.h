@@ -38,15 +38,19 @@ global constexpr i32     WINDOW_COORDINATES_X       = SDL_WINDOWPOS_UNDEFINED;
 global constexpr i32     WINDOW_COORDINATES_Y       = SDL_WINDOWPOS_UNDEFINED;
 #endif
 
+#define PROTOTYPE_GET_FILE_MODIFICATION_TIME(NAME) time_t NAME(strlit file_path)
+typedef PROTOTYPE_GET_FILE_MODIFICATION_TIME(PrototypeGetFileModificationTime);
+
 struct Program
 {
-	bool32        is_running;
-	bool32        is_going_to_hotload;
-	f32           delta_seconds;
-	SDL_Renderer* renderer;
-	byte*         memory;
-	memsize       memory_capacity;
-	u32           window_id;
+	bool32                            is_running;
+	bool32                            is_going_to_hotload;
+	f32                               delta_seconds;
+	SDL_Renderer*                     renderer;
+	byte*                             memory;
+	memsize                           memory_capacity;
+	u32                               window_id;
+	PrototypeGetFileModificationTime* get_file_modification_time;
 
 	#if DEBUG
 	SDL_Renderer* debug_renderer;

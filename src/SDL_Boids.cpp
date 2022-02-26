@@ -336,7 +336,7 @@ internal void update_simulation(State* state)
 
 void fetch_settings(Settings* settings)
 {
-	SDL_RWops* vars_file = SDL_RWFromFile("W:/data/SDL_Boids.vars", "r"); // @TODO@ What are the consequences of not opening in binary mode?
+	SDL_RWops* vars_file = SDL_RWFromFile(VARS_FILE_PATH, "r"); // @TODO@ What are the consequences of not opening in binary mode?
 	if (vars_file == 0)
 	{
 		// @TODO@ @STICKY@ File does not exist.
@@ -497,7 +497,9 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
-	state->settings = {};
+	state->settings                        = {};
+	state->settings_last_modification_time = program->get_file_modification_time(VARS_FILE_PATH);
+	state->settings_refetch_counter        = VARS_COUNTER;
 	fetch_settings(&state->settings);
 
 	state->is_debug_cursor_down             = false;
@@ -596,6 +598,18 @@ extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 extern "C" PROTOTYPE_UPDATE(update)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
+
+	--state->settings_refetch_counter;
+	if (state->settings_refetch_counter <= 0)
+	{
+		state->settings_refetch_counter = VARS_COUNTER;
+		time_t current_modification_time = program->get_file_modification_time(VARS_FILE_PATH);
+		if (current_modification_time != state->settings_last_modification_time)
+		{
+			state->settings_last_modification_time = current_modification_time;
+			fetch_settings(&state->settings);
+		}
+	}
 
 	for (SDL_Event event; SDL_PollEvent(&event);)
 	{
