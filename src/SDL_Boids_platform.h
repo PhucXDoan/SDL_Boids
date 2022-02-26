@@ -1,4 +1,5 @@
 #pragma once
+#include <sys/stat.h>
 #include <stdio.h>
 #include <SDL.h>
 #include <SDL_ttf.h>
@@ -68,7 +69,7 @@ typedef PROTOTYPE_UPDATE(PrototypeUpdate);
 struct HotloadingData
 {
 	byte*                dll;
-	FILETIME             dll_creation_time;
+	time_t               dll_modification_time;
 	PrototypeInitialize* initialize;
 	PrototypeBootDown*   boot_down;
 	PrototypeBootUp*     boot_up;

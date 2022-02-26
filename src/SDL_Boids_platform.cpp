@@ -2,13 +2,19 @@
 
 PROTOTYPE_UPDATE(program_update_fallback) {}
 
-FILETIME get_program_dll_creation_time(void)
+time_t get_program_dll_modification_time(void)
 {
-	WIN32_FILE_ATTRIBUTE_DATA attributes;
-	return
-		GetFileAttributesExA(PROGRAM_DLL_FILE_PATH, GetFileExInfoStandard, &attributes)
-			? attributes.ftLastWriteTime
-			: FILETIME {};
+	// @TODO@ Windows vs Unix shenanigans here... Resolve!
+	struct stat file_status;
+	if (stat(PROGRAM_DLL_FILE_PATH, &file_status))
+	{
+		// @TODO@ File not found.
+		return {};
+	}
+	else
+	{
+		return file_status.st_mtime;
+	}
 }
 
 // @STICKY@ Reference: `https://gist.github.com/ChrisDill/291c938605c200d079a88d0a7855f31a`.
@@ -30,12 +36,12 @@ void reload_program_dll(HotloadingData* hotloading_data)
 	SDL_RWclose(des);
 	SDL_free(buffer);
 
-	hotloading_data->dll               = reinterpret_cast<byte*>(SDL_LoadObject(PROGRAM_DLL_TEMP_FILE_PATH));
-	hotloading_data->dll_creation_time = get_program_dll_creation_time();
-	hotloading_data->initialize        = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "initialize"));
-	hotloading_data->boot_down         = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "boot_down"));
-	hotloading_data->boot_up           = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "boot_up"));
-	hotloading_data->update            = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "update"));
+	hotloading_data->dll                   = reinterpret_cast<byte*>(SDL_LoadObject(PROGRAM_DLL_TEMP_FILE_PATH));
+	hotloading_data->dll_modification_time = get_program_dll_modification_time();
+	hotloading_data->initialize            = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "initialize"));
+	hotloading_data->boot_down             = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "boot_down"));
+	hotloading_data->boot_up               = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "boot_up"));
+	hotloading_data->update                = reinterpret_cast<PrototypeUpdate*>(SDL_LoadFunction(hotloading_data->dll, "update"));
 }
 
 int main(int, char**)
@@ -112,8 +118,8 @@ int main(int, char**)
 		program.delta_seconds = static_cast<f32>(new_performance_count - performance_count) / SDL_GetPerformanceFrequency();
 		performance_count     = new_performance_count;
 
-		FILETIME current_program_dll_creation_time = get_program_dll_creation_time();
-		if (CompareFileTime(&current_program_dll_creation_time, &hotloading_data.dll_creation_time))
+		time_t current_program_dll_modification_time = get_program_dll_modification_time();
+		if (current_program_dll_modification_time != hotloading_data.dll_modification_time)
 		{
 			WIN32_FILE_ATTRIBUTE_DATA attributes_;
 			while (GetFileAttributesEx(LOCK_FILE_PATH, GetFileExInfoStandard, &attributes_));
