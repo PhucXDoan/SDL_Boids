@@ -56,6 +56,7 @@ struct Settings
 	i32   max_iterations_per_frame          = 8;
 	vf2   testing_box_coordinates           = { 180.0f, 24.0f };
 	vf2   testing_box_dimensions            = {  90.0f, 20.0f };
+	f32   boid_velocity                     = 1.0f;
 };
 
 struct Boid
@@ -125,7 +126,6 @@ struct State
 	f32              camera_zoom;
 	f32              simulation_time_scalar;
 	f32              real_world_counter_seconds;
-	f32              boid_velocity;
 	f32              held_boid_velocity;
 };
 

@@ -236,7 +236,7 @@ internal void update_chunk_node(State* state, ChunkNode* chunk_node)
 				state->map.new_boids[*boid_index].direction = old_boid->direction;
 			}
 
-			state->map.new_boids[*boid_index].position = old_boid->position + state->boid_velocity * old_boid->direction * state->simulation_time_scalar * state->settings.update_frequency;
+			state->map.new_boids[*boid_index].position = old_boid->position + state->settings.boid_velocity * old_boid->direction * state->simulation_time_scalar * state->settings.update_frequency;
 		}
 
 		current_index_buffer_node = current_index_buffer_node->next_node;
@@ -473,6 +473,7 @@ void fetch_settings(Settings* settings)
 			else CHECK_PRIMITIVE_PROPERTY("%d", i32, max_iterations_per_frame)
 			else CHECK_VECTOR2_PROPERTY(testing_box_coordinates)
 			else CHECK_VECTOR2_PROPERTY(testing_box_dimensions)
+			else CHECK_PRIMITIVE_PROPERTY("%f", f32, boid_velocity)
 			else
 			{
 				DEBUG_printf("\t>>>> Unknown property : ");
@@ -537,7 +538,6 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 	state->camera_zoom                 = 1.0f;
 	state->simulation_time_scalar      = 1.0f;
 	state->real_world_counter_seconds  = 0.0f;
-	state->boid_velocity               = 1.0f;
 }
 
 extern "C" PROTOTYPE_BOOT_UP(boot_up)
@@ -689,8 +689,8 @@ extern "C" PROTOTYPE_UPDATE(update)
 						IN_RANGE(state->last_debug_cursor_click_position.y - state->settings.testing_box_coordinates.y, 0.0f, state->settings.testing_box_dimensions.y)
 					)
 					{
-						state->boid_velocity = state->held_boid_velocity + (state->debug_cursor_position.x - state->last_debug_cursor_click_position.x) / 100.0f;
-						state->boid_velocity = CLAMP(state->boid_velocity, 0.0f, 4.0f);
+						state->settings.boid_velocity = state->held_boid_velocity + (state->debug_cursor_position.x - state->last_debug_cursor_click_position.x) / 100.0f;
+						state->settings.boid_velocity = CLAMP(state->settings.boid_velocity, 0.0f, 4.0f);
 					}
 				}
 				#endif
@@ -715,7 +715,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 							IN_RANGE(state->last_debug_cursor_click_position.y - state->settings.testing_box_coordinates.y, 0.0f, state->settings.testing_box_dimensions.y)
 						)
 						{
-							state->held_boid_velocity = state->boid_velocity;
+							state->held_boid_velocity = state->settings.boid_velocity;
 						}
 					}
 					else
@@ -894,7 +894,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			5,
 			"FPS : %d\nBoid Velocity : %f\nTime Scalar : %f\nUsed     : %llub\nCapacity : %llub\nPercent  : %f%%",
 			static_cast<i32>(roundf(1.0f / MAXIMUM(program->delta_seconds, state->settings.update_frequency))),
-			state->boid_velocity,
+			state->settings.boid_velocity,
 			state->simulation_time_scalar,
 			state->map.arena.used,
 			state->map.arena.size,
