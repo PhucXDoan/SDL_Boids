@@ -16,7 +16,6 @@ global constexpr i32    PROFILING_ITERATION_COUNT = 0; // @NOTE@ `0` to not prof
 #endif
 
 global constexpr strlit VARS_FILE_PATH      = "W:/data/SDL_Boids.vars";
-global constexpr i32    VARS_COUNTER        = 50'000;
 global constexpr i32    BOID_AMOUNT         = 512;
 global constexpr bool32 USE_HELPER_THREADS  = false; // @TODO@ This is necessary as it's not possible to set `HELPER_THREADS_COUNT` to 0 as of now.
 global constexpr i32    HELPER_THREAD_COUNT = 4;
@@ -57,6 +56,10 @@ struct Settings
 	vf2   testing_box_coordinates           = { 180.0f, 24.0f };
 	vf2   testing_box_dimensions            = {  90.0f, 20.0f };
 	f32   boid_velocity                     = 1.0f;
+	vf2   save_button_coordinates           = { 10.0f, 90.0f };
+	vf2   save_button_dimensions            = { 50.0f, 10.0f };
+	vf2   load_button_coordinates           = { 10.0f, 120.0f };
+	vf2   load_button_dimensions            = { 10.0f, 10.0f };
 };
 
 struct Boid
@@ -102,7 +105,6 @@ struct HelperThreadData
 struct State
 {
 	Settings         settings;
-	time_t           settings_last_modification_time;
 	i32              settings_refetch_counter;
 	SDL_Cursor*      default_cursor;
 	SDL_Cursor*      grab_cursor;

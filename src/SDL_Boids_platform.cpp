@@ -3,7 +3,7 @@
 PROTOTYPE_UPDATE(program_update_fallback) {}
 
 // @TODO@ Windows vs Unix shenanigans here... Resolve!
-PROTOTYPE_GET_FILE_MODIFICATION_TIME(get_file_modification_time)
+internal time_t get_file_modification_time(strlit file_path)
 {
 	struct stat file_status;
 	if (stat(file_path, &file_status))
@@ -17,7 +17,7 @@ PROTOTYPE_GET_FILE_MODIFICATION_TIME(get_file_modification_time)
 }
 
 // @STICKY@ Reference: `https://gist.github.com/ChrisDill/291c938605c200d079a88d0a7855f31a`.
-void reload_program_dll(HotloadingData* hotloading_data)
+internal void reload_program_dll(HotloadingData* hotloading_data)
 {
 	if (hotloading_data->dll)
 	{
@@ -92,14 +92,13 @@ int main(int, char**)
 	#endif
 
 	Program program;
-	program.is_running                 = true;
-	program.is_going_to_hotload        = false;
-	program.delta_seconds              = 0.0f;
-	program.renderer                   = window_renderer;
-	program.memory                     = reinterpret_cast<byte*>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
-	program.memory_capacity            = MEMORY_CAPACITY;
-	program.window_id                  = SDL_GetWindowID(window);
-	program.get_file_modification_time = get_file_modification_time;
+	program.is_running          = true;
+	program.is_going_to_hotload = false;
+	program.delta_seconds       = 0.0f;
+	program.renderer            = window_renderer;
+	program.memory              = reinterpret_cast<byte*>(VirtualAlloc(reinterpret_cast<LPVOID>(tebibytes_of(4)), MEMORY_CAPACITY, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+	program.memory_capacity     = MEMORY_CAPACITY;
+	program.window_id           = SDL_GetWindowID(window);
 
 	#if DEBUG
 	program.debug_renderer      = debug_window_renderer;

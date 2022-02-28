@@ -334,15 +334,17 @@ internal void update_simulation(State* state)
 	SWAP(state->map.new_boids, state->map.old_boids);
 }
 
-void fetch_settings(Settings* settings)
+internal void fetch_settings(Settings* settings)
 {
 	SDL_RWops* vars_file = SDL_RWFromFile(VARS_FILE_PATH, "r"); // @TODO@ What are the consequences of not opening in binary mode?
 	if (vars_file == 0)
 	{
-		// @TODO@ @STICKY@ File does not exist.
+		DEBUG_printf("\t>>>> Could not load vars file at '%s'.\n", VARS_FILE_PATH);
 	}
 	else
 	{
+		DEBUG_printf("\t>>>> Loaded vars file at '%s'.\n", VARS_FILE_PATH);
+
 		// @TODO@ Better way to allocate memory?
 		StringBuffer vars_file_text;
 		vars_file_text.count    = static_cast<i32>(SDL_RWsize(vars_file));
@@ -474,6 +476,10 @@ void fetch_settings(Settings* settings)
 			else CHECK_VECTOR2_PROPERTY(testing_box_coordinates)
 			else CHECK_VECTOR2_PROPERTY(testing_box_dimensions)
 			else CHECK_PRIMITIVE_PROPERTY("%f", f32, boid_velocity)
+			else CHECK_VECTOR2_PROPERTY(save_button_coordinates)
+			else CHECK_VECTOR2_PROPERTY(save_button_dimensions)
+			else CHECK_VECTOR2_PROPERTY(load_button_coordinates)
+			else CHECK_VECTOR2_PROPERTY(load_button_dimensions)
 			else
 			{
 				DEBUG_printf("\t>>>> Unknown property : ");
@@ -498,9 +504,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
 
-	state->settings                        = {};
-	state->settings_last_modification_time = program->get_file_modification_time(VARS_FILE_PATH);
-	state->settings_refetch_counter        = VARS_COUNTER;
+	state->settings                         = {};
 	fetch_settings(&state->settings);
 
 	state->is_debug_cursor_down             = false;
@@ -598,18 +602,6 @@ extern "C" PROTOTYPE_BOOT_DOWN(boot_down)
 extern "C" PROTOTYPE_UPDATE(update)
 {
 	State* state = reinterpret_cast<State*>(program->memory);
-
-	--state->settings_refetch_counter;
-	if (state->settings_refetch_counter <= 0)
-	{
-		state->settings_refetch_counter = VARS_COUNTER;
-		time_t current_modification_time = program->get_file_modification_time(VARS_FILE_PATH);
-		if (current_modification_time != state->settings_last_modification_time)
-		{
-			state->settings_last_modification_time = current_modification_time;
-			fetch_settings(&state->settings);
-		}
-	}
 
 	for (SDL_Event event; SDL_PollEvent(&event);)
 	{
@@ -716,6 +708,22 @@ extern "C" PROTOTYPE_UPDATE(update)
 						)
 						{
 							state->held_boid_velocity = state->settings.boid_velocity;
+						}
+						else if
+						(
+							IN_RANGE(state->last_debug_cursor_click_position.x - state->settings.save_button_coordinates.x, 0.0f, state->settings.save_button_dimensions.x) &&
+							IN_RANGE(state->last_debug_cursor_click_position.y - state->settings.save_button_coordinates.y, 0.0f, state->settings.save_button_dimensions.y)
+						)
+						{
+							DEBUG_printf("\t>>>> Save\n");
+						}
+						else if
+						(
+							IN_RANGE(state->last_debug_cursor_click_position.x - state->settings.load_button_coordinates.x, 0.0f, state->settings.load_button_dimensions.x) &&
+							IN_RANGE(state->last_debug_cursor_click_position.y - state->settings.load_button_coordinates.y, 0.0f, state->settings.load_button_dimensions.y)
+						)
+						{
+							fetch_settings(&state->settings);
 						}
 					}
 					else
@@ -882,8 +890,14 @@ extern "C" PROTOTYPE_UPDATE(update)
 		);
 
 		SDL_SetRenderDrawColor(program->debug_renderer, 128, 128, 0, 255);
-		SDL_Rect TESTING_rect = { static_cast<i32>(state->settings.testing_box_coordinates.x), static_cast<i32>(state->settings.testing_box_coordinates.y), static_cast<i32>(state->settings.testing_box_dimensions.x), static_cast<i32>(state->settings.testing_box_dimensions.y) };
-		SDL_RenderFillRect(program->debug_renderer, &TESTING_rect);
+		SDL_Rect rect = { static_cast<i32>(state->settings.testing_box_coordinates.x), static_cast<i32>(state->settings.testing_box_coordinates.y), static_cast<i32>(state->settings.testing_box_dimensions.x), static_cast<i32>(state->settings.testing_box_dimensions.y) };
+		SDL_RenderFillRect(program->debug_renderer, &rect);
+
+		rect = { static_cast<i32>(state->settings.save_button_coordinates.x), static_cast<i32>(state->settings.save_button_coordinates.y), static_cast<i32>(state->settings.save_button_dimensions.x), static_cast<i32>(state->settings.save_button_dimensions.y) };
+		SDL_RenderFillRect(program->debug_renderer, &rect);
+
+		rect = { static_cast<i32>(state->settings.load_button_coordinates.x), static_cast<i32>(state->settings.load_button_coordinates.y), static_cast<i32>(state->settings.load_button_dimensions.x), static_cast<i32>(state->settings.load_button_dimensions.y) };
+		SDL_RenderFillRect(program->debug_renderer, &rect);
 
 		// @TODO@ Accurate way to get FPS.
 		FC_Draw
@@ -892,7 +906,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 			program->debug_renderer,
 			5,
 			5,
-			"FPS : %d\nBoid Velocity : %f\nTime Scalar : %f\nUsed     : %llub\nCapacity : %llub\nPercent  : %f%%",
+			"FPS : %d\nBoid Velocity : %f\nTime Scalar : %f\nUsed : %llub\nCapacity : %llub\nPercent : %f%%\nSave\nLoad",
 			static_cast<i32>(roundf(1.0f / MAXIMUM(program->delta_seconds, state->settings.update_frequency))),
 			state->settings.boid_velocity,
 			state->simulation_time_scalar,
