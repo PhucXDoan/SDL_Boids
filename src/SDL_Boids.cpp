@@ -334,7 +334,7 @@ internal void update_simulation(State* state)
 	SWAP(state->map.new_boids, state->map.old_boids);
 }
 
-internal void fetch_settings(Settings* settings)
+internal void load_settings(Settings* settings)
 {
 	SDL_RWops* vars_file = SDL_RWFromFile(VARS_FILE_PATH, "r"); // @TODO@ What are the consequences of not opening in binary mode?
 	if (vars_file == 0)
@@ -349,32 +349,32 @@ internal void fetch_settings(Settings* settings)
 		StringBuffer vars_file_text;
 		vars_file_text.count    = static_cast<i32>(SDL_RWsize(vars_file));
 		vars_file_text.capacity = vars_file_text.count;
-		vars_file_text.data     = reinterpret_cast<char*>(malloc(vars_file_text.capacity));
-		SDL_RWread(vars_file, vars_file_text.data, vars_file_text.capacity, 1);
+		vars_file_text.buffer   = reinterpret_cast<char*>(malloc(vars_file_text.capacity));
+		SDL_RWread(vars_file, vars_file_text.buffer, vars_file_text.capacity, 1);
 
-		StringBuffer StringBuffer_Stack(property_name , 256);
-		StringBuffer StringBuffer_Stack(property_value, 256);
+		StringBuffer STRING_BUFFER_STACK(property_name , 256);
+		StringBuffer STRING_BUFFER_STACK(property_value, 256);
 
 		for (i32 i = 0; i < vars_file_text.capacity; ++i)
 		{
-			while (i < vars_file_text.capacity && vars_file_text.data[i] != ' ')
+			while (i < vars_file_text.capacity && vars_file_text.buffer[i] != ' ')
 			{
-				push_char(&property_name, vars_file_text.data[i]);
+				string_buffer_add(&property_name, vars_file_text.buffer[i]);
 				++i;
 			}
 
-			while (i < vars_file_text.capacity && vars_file_text.data[i] == ' ')
+			while (i < vars_file_text.capacity && vars_file_text.buffer[i] == ' ')
 			{
 				++i;
 			}
 
-			while (i < vars_file_text.capacity && vars_file_text.data[i] != '\n')
+			while (i < vars_file_text.capacity && vars_file_text.buffer[i] != '\n')
 			{
-				push_char(&property_value, vars_file_text.data[i]);
+				string_buffer_add(&property_value, vars_file_text.buffer[i]);
 				++i;
 			}
 
-			if (i > 0 && vars_file_text.data[i - 1] == '\r')
+			if (i > 0 && vars_file_text.buffer[i - 1] == '\r')
 			{
 				--property_value.count;
 			}
@@ -402,25 +402,25 @@ internal void fetch_settings(Settings* settings)
 			#define CHECK_VECTOR2_PROPERTY(PROPERTY_NAME)\
 			if (string_buffer_equal(&property_name, #PROPERTY_NAME))\
 			{\
-				i32 x_component_length = 0;\
-				FOR_ELEMS(c, property_value.data, property_value.count)\
+				memsize x_component_length = 0;\
+				FOR_ELEMS(c, property_value.buffer, property_value.count)\
 				{\
 					if (*c == ' ') { break; }\
 					else { ++x_component_length; }\
 				}\
-				i32 y_component_index = x_component_length;\
-				while (property_value.data[y_component_index] == ' ')\
+				memsize y_component_index = x_component_length;\
+				while (property_value.buffer[y_component_index] == ' ')\
 				{\
 					++y_component_index;\
 				}\
-				i32 y_component_length = 0;\
-				FOR_ELEMS(c, property_value.data + y_component_index, property_value.count - y_component_index)\
+				memsize y_component_length = 0;\
+				FOR_ELEMS(c, property_value.buffer + y_component_index, property_value.count - y_component_index)\
 				{\
 					if (*c == ' ') { break; }\
 					else { ++y_component_length; }\
 				}\
-				StringBuffer x_component = { x_component_length, x_component_length, property_value.data };\
-				StringBuffer y_component = { y_component_length, y_component_length, property_value.data + y_component_index };\
+				StringBuffer x_component = { x_component_length, x_component_length, property_value.buffer };\
+				StringBuffer y_component = { y_component_length, y_component_length, property_value.buffer + y_component_index };\
 				vf2 result;\
 				if (string_buffer_parse_f32(&x_component, &result.x) && string_buffer_parse_f32(&y_component, &result.y))\
 				{\
@@ -466,7 +466,7 @@ internal void fetch_settings(Settings* settings)
 				DEBUG_print_StringBuffer(&property_value);
 				DEBUG_printf("\n");
 				settings->font_file_path = reinterpret_cast<char*>(malloc(property_value.count + 1)); // @TODO@ Leak.
-				FOR_ELEMS(c, property_value.data, property_value.count)
+				FOR_ELEMS(c, property_value.buffer, property_value.count)
 				{
 					settings->font_file_path[c_index] = *c;
 				}
@@ -495,9 +495,78 @@ internal void fetch_settings(Settings* settings)
 			property_value.count = 0;
 		}
 
-		free(vars_file_text.data);
-		SDL_RWclose(vars_file);
+		free(vars_file_text.buffer);
 	}
+
+	SDL_RWclose(vars_file);
+}
+
+internal void save_settings(Settings* settings)
+{
+	SDL_RWops* vars_file = SDL_RWFromFile(VARS_FILE_PATH, "w"); // @TODO@ What are the consequences of not opening in binary mode?
+
+	StringBuffer STRING_BUFFER_STACK(line, 64);
+
+	#define ADD_PRIMITIVE_PROPERTY(PROPERTY_NAME)\
+	do\
+	{\
+		string_buffer_add(&line, #PROPERTY_NAME);\
+		string_buffer_add(&line, ' ');\
+		string_buffer_add(&line, settings->##PROPERTY_NAME);\
+		string_buffer_add(&line, '\n');\
+		SDL_RWwrite(vars_file, line.buffer, sizeof(char), line.count);\
+		line.count = 0;\
+	}\
+	while (false)
+
+	#define ADD_VECTOR2_PROPERTY(PROPERTY_NAME)\
+	do\
+	{\
+		string_buffer_add(&line, #PROPERTY_NAME);\
+		string_buffer_add(&line, ' ');\
+		string_buffer_add(&line, settings->##PROPERTY_NAME##.x);\
+		string_buffer_add(&line, ' ');\
+		string_buffer_add(&line, settings->##PROPERTY_NAME##.y);\
+		string_buffer_add(&line, '\n');\
+		SDL_RWwrite(vars_file, line.buffer, sizeof(char), line.count);\
+		line.count = 0;\
+	}\
+	while (false)
+
+	ADD_PRIMITIVE_PROPERTY(pixels_per_meter);
+	ADD_PRIMITIVE_PROPERTY(boid_neighborhood_radius);
+	ADD_PRIMITIVE_PROPERTY(minimum_radius);
+	ADD_PRIMITIVE_PROPERTY(separation_weight);
+	ADD_PRIMITIVE_PROPERTY(alignment_weight);
+	ADD_PRIMITIVE_PROPERTY(cohesion_weight);
+	ADD_PRIMITIVE_PROPERTY(border_weight);
+	ADD_PRIMITIVE_PROPERTY(angular_velocity);
+	ADD_PRIMITIVE_PROPERTY(minimum_desired_movement_distance);
+	ADD_PRIMITIVE_PROPERTY(border_repulsion_initial_tangent);
+	ADD_PRIMITIVE_PROPERTY(border_repulsion_final_tangent);
+	ADD_PRIMITIVE_PROPERTY(heatmap_sensitivity);
+	ADD_PRIMITIVE_PROPERTY(camera_speed);
+	ADD_PRIMITIVE_PROPERTY(camera_acceleration);
+	ADD_PRIMITIVE_PROPERTY(zoom_speed);
+	ADD_PRIMITIVE_PROPERTY(zoom_acceleration);
+	ADD_PRIMITIVE_PROPERTY(zoom_minimum_scale_factor);
+	ADD_PRIMITIVE_PROPERTY(zoom_maximum_scale_factor);
+	ADD_PRIMITIVE_PROPERTY(time_scalar_change_speed);
+	ADD_PRIMITIVE_PROPERTY(time_scalar_maximum_scale_factor);
+	ADD_PRIMITIVE_PROPERTY(update_frequency);
+	ADD_PRIMITIVE_PROPERTY(font_file_path);
+	ADD_PRIMITIVE_PROPERTY(max_iterations_per_frame);
+	ADD_VECTOR2_PROPERTY(testing_box_coordinates);
+	ADD_VECTOR2_PROPERTY(testing_box_dimensions);
+	ADD_PRIMITIVE_PROPERTY(boid_velocity);
+	ADD_VECTOR2_PROPERTY(save_button_coordinates);
+	ADD_VECTOR2_PROPERTY(save_button_dimensions);
+	ADD_VECTOR2_PROPERTY(load_button_coordinates);
+	ADD_VECTOR2_PROPERTY(load_button_dimensions);
+
+	SDL_RWwrite(vars_file, line.buffer, sizeof(char), line.count);
+
+	SDL_RWclose(vars_file);
 }
 
 extern "C" PROTOTYPE_INITIALIZE(initialize)
@@ -505,7 +574,7 @@ extern "C" PROTOTYPE_INITIALIZE(initialize)
 	State* state = reinterpret_cast<State*>(program->memory);
 
 	state->settings                         = {};
-	fetch_settings(&state->settings);
+	load_settings(&state->settings);
 
 	state->is_debug_cursor_down             = false;
 	state->debug_cursor_position            = { 0.0f, 0.0f };
@@ -715,7 +784,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 							IN_RANGE(state->last_debug_cursor_click_position.y - state->settings.save_button_coordinates.y, 0.0f, state->settings.save_button_dimensions.y)
 						)
 						{
-							DEBUG_printf("\t>>>> Save\n");
+							save_settings(&state->settings);
 						}
 						else if
 						(
@@ -723,7 +792,7 @@ extern "C" PROTOTYPE_UPDATE(update)
 							IN_RANGE(state->last_debug_cursor_click_position.y - state->settings.load_button_coordinates.y, 0.0f, state->settings.load_button_dimensions.y)
 						)
 						{
-							fetch_settings(&state->settings);
+							load_settings(&state->settings);
 						}
 					}
 					else
